@@ -1,0 +1,81 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>PeakHeadTracking</AssemblyName>
+    <RootNamespace>PeakHeadTracking</RootNamespace>
+    <Version>1.0.0</Version>
+    <LangVersion>9.0</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <OutputType>Library</OutputType>
+    <Authors>itsloopyo</Authors>
+    <Description>Head tracking mod for PEAK using CameraUnlock.Core</Description>
+  </PropertyGroup>
+
+  <!-- Set UnityEnginePath BEFORE ProjectReference so it can be passed to CameraUnlock.Core.Unity -->
+  <PropertyGroup>
+    <UnityEnginePath Condition="'$(UnityEnginePath)' == ''">$(MSBuildProjectDirectory)\..\..\lib</UnityEnginePath>
+  </PropertyGroup>
+
+  <!-- CameraUnlock shared libraries -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\cameraunlock-core\csharp\src\CameraUnlock.Core\CameraUnlock.Core.csproj" />
+    <ProjectReference Include="..\..\cameraunlock-core\csharp\src\CameraUnlock.Core.Unity\CameraUnlock.Core.Unity.csproj">
+      <AdditionalProperties>UnityEnginePath=$(UnityEnginePath)</AdditionalProperties>
+    </ProjectReference>
+  </ItemGroup>
+
+  <!-- Reference DLLs from lib/ folder (populated by setup-libs.ps1) -->
+  <PropertyGroup>
+    <LibPath>$(MSBuildProjectDirectory)\..\..\lib</LibPath>
+  </PropertyGroup>
+
+  <!-- BepInEx references -->
+  <ItemGroup>
+    <Reference Include="BepInEx">
+      <HintPath>$(LibPath)\BepInEx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(LibPath)\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Unity references -->
+  <ItemGroup>
+    <Reference Include="UnityEngine">
+      <HintPath>$(LibPath)\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(LibPath)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(LibPath)\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$(LibPath)\UnityEngine.UIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(LibPath)\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(LibPath)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>$(LibPath)\UnityEngine.AnimationModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>$(LibPath)\UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>
