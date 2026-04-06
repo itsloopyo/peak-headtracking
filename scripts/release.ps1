@@ -120,6 +120,13 @@ $pluginContent = $pluginContent -replace 'PLUGIN_VERSION = "[^"]+"', "PLUGIN_VER
 $pluginContent | Set-Content $pluginPath -NoNewline
 Write-Host "  Updated PeakHeadTrackingPlugin.cs" -ForegroundColor Gray
 
+# Step 2b: Update version in manifest.json (Thunderstore)
+$manifestPath = Join-Path $projectDir "manifest.json"
+$manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+$manifest.version_number = $Version
+$manifest | ConvertTo-Json -Depth 10 | Set-Content $manifestPath -NoNewline
+Write-Host "  Updated manifest.json" -ForegroundColor Gray
+
 # Step 3: Build and update prebuilt DLLs
 Write-Host "Building release..." -ForegroundColor Cyan
 Push-Location $projectDir
@@ -153,25 +160,41 @@ if (-not $hasExistingTags) {
     Set-Content $changelogPath $firstEntry
     Write-Host "  First release - wrote initial CHANGELOG entry" -ForegroundColor Gray
 } else {
-    $changelogArgs = @{
-        ChangelogPath = $changelogPath
-        Version = $Version
-        ArtifactPaths = @(
-            "src/PeakHeadTracking/",
-            "cameraunlock-core",
-            "scripts/install.cmd",
-            "scripts/uninstall.cmd",
-            "prebuilt/"
-        )
+    try {
+        $changelogArgs = @{
+            ChangelogPath = $changelogPath
+            Version = $Version
+            ArtifactPaths = @(
+                "src/PeakHeadTracking/",
+                "cameraunlock-core",
+                "scripts/",
+                "prebuilt/",
+                "manifest.json",
+                "assets/",
+                "README.md",
+                "CHANGELOG.md",
+                "LICENSE",
+                ".github/"
+            )
+        }
+        if ($Force) { $changelogArgs.IncludeAll = $true }
+        New-ChangelogFromCommits @changelogArgs
+    } catch {
+        # No commits found (e.g. after squash) — write a basic entry
+        Write-Host "  No commits in range, writing manual changelog entry" -ForegroundColor Yellow
+        $date = Get-Date -Format 'yyyy-MM-dd'
+        $entry = "## [$Version] - $date`n`nRelease $Version.`n"
+        $existing = if (Test-Path $changelogPath) { Get-Content $changelogPath -Raw } else { "# Changelog`n`n" }
+        $existing = $existing -replace '(# Changelog\s*)', "`$1`n$entry`n"
+        Set-Content $changelogPath $existing
     }
-    if ($Force) { $changelogArgs.IncludeAll = $true }
-    New-ChangelogFromCommits @changelogArgs
 }
 
 # Step 5: Commit
 Write-Host "Committing changes..." -ForegroundColor Cyan
 git add $csprojPath
 git add $pluginPath
+git add $manifestPath
 git add "$projectDir/prebuilt"
 git add $changelogPath
 git commit -m "Release v$Version"

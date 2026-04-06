@@ -15,8 +15,60 @@ jobs:
       build-output-dir: src/PeakHeadTracking/bin/Release/net472
       mod-name: PeakHeadTracking
       mod-dlls: "PeakHeadTracking.dll CameraUnlock.Core.dll CameraUnlock.Core.Unity.dll"
-      artifact-paths: "src/PeakHeadTracking/ cameraunlock-core scripts/install.cmd scripts/uninstall.cmd prebuilt/"
+      artifact-paths: "src/PeakHeadTracking/ cameraunlock-core scripts/ prebuilt/ manifest.json assets/ README.md CHANGELOG.md LICENSE .github/"
       prebuilt-dir: prebuilt
       create-nexus-zip: "true"
     permissions:
       contents: write
+
+  thunderstore:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Build Thunderstore ZIP
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          STAGING="thunderstore-staging"
+          mkdir -p "$STAGING/plugins"
+
+          # manifest.json with correct version
+          jq --arg v "$VERSION" '.version_number = $v' manifest.json > "$STAGING/manifest.json"
+
+          # Required files
+          cp assets/icon.png "$STAGING/"
+          cp README.md "$STAGING/"
+
+          # Optional files
+          [ -f LICENSE ] && cp LICENSE "$STAGING/"
+          [ -f CHANGELOG.md ] && cp CHANGELOG.md "$STAGING/"
+
+          # DLLs from prebuilt (already built by the release job)
+          cp prebuilt/PeakHeadTracking.dll "$STAGING/plugins/"
+          cp prebuilt/CameraUnlock.Core.dll "$STAGING/plugins/"
+          cp prebuilt/CameraUnlock.Core.Unity.dll "$STAGING/plugins/"
+
+          cd "$STAGING"
+          zip -r "../PeakHeadTracking-v${VERSION}-thunderstore.zip" .
+          cd ..
+
+          echo "zip_path=PeakHeadTracking-v${VERSION}-thunderstore.zip" >> $GITHUB_OUTPUT
+          ls -la "PeakHeadTracking-v${VERSION}-thunderstore.zip"
+
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          gh release upload "v${VERSION}" "PeakHeadTracking-v${VERSION}-thunderstore.zip" --clobber

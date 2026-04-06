@@ -1,6 +1,9 @@
 {
-  "name": "PeakHeadTracking",
-  "version": "1.0.0",
-  "description": "Head tracking mod for PEAK using CameraUnlock.Core",
-  "author": "itsloopyo"
+    "name":  "OpenTrack_Compatible_Head_Tracking_for_PEAK",
+    "version_number":  "1.0.1",
+    "description":  "Decoupled head tracking for PEAK using any OpenTrack-compatible tracker - webcam, phone app, or dedicated hardware.",
+    "dependencies":  [
+                         "BepInEx-BepInExPack_PEAK-5.4.75301"
+                     ],
+    "website_url":  "https://github.com/itsloopyo/peak-headtracking"
 }

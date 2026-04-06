@@ -141,14 +141,89 @@ Remove-Item -Recurse -Force $nexusStagingDir
 $nexusZipSize = (Get-Item $nexusZipPath).Length / 1KB
 Write-Host ("  $nexusZipPath ({0:N1} KB)" -f $nexusZipSize) -ForegroundColor Green
 
+# --- Thunderstore ZIP ---
+
+Write-Host ""
+Write-Host "--- Thunderstore ZIP ---" -ForegroundColor Yellow
+Write-Host ""
+
+$tsStagingDir = Join-Path $releaseDir "staging-thunderstore"
+if (Test-Path $tsStagingDir) { Remove-Item -Recurse -Force $tsStagingDir }
+New-Item -ItemType Directory -Path $tsStagingDir -Force | Out-Null
+
+# manifest.json — update version from csproj
+$manifestPath = Join-Path $projectDir "manifest.json"
+if (-not (Test-Path $manifestPath)) {
+    throw "manifest.json not found at project root"
+}
+$manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+$manifest.version_number = $version
+$manifest | ConvertTo-Json -Depth 10 | Out-File (Join-Path $tsStagingDir "manifest.json") -Encoding utf8
+Write-Host "  manifest.json (v$version)" -ForegroundColor Green
+
+# icon.png — required 256x256
+$iconPath = Join-Path $projectDir "assets\icon.png"
+if (Test-Path $iconPath) {
+    Copy-Item $iconPath -Destination $tsStagingDir -Force
+    Write-Host "  icon.png" -ForegroundColor Green
+} else {
+    Write-Host "  WARNING: assets/icon.png not found - Thunderstore requires a 256x256 icon" -ForegroundColor Yellow
+}
+
+# README.md
+Copy-Item (Join-Path $projectDir "README.md") -Destination $tsStagingDir -Force
+Write-Host "  README.md" -ForegroundColor Green
+
+# LICENSE
+$licensePath = Join-Path $projectDir "LICENSE"
+if (Test-Path $licensePath) {
+    Copy-Item $licensePath -Destination $tsStagingDir -Force
+    Write-Host "  LICENSE" -ForegroundColor Green
+}
+
+# CHANGELOG.md
+$changelogPath = Join-Path $projectDir "CHANGELOG.md"
+if (Test-Path $changelogPath) {
+    Copy-Item $changelogPath -Destination $tsStagingDir -Force
+    Write-Host "  CHANGELOG.md" -ForegroundColor Green
+}
+
+# Mod DLLs in plugins subfolder
+$tsPluginsDir = Join-Path $tsStagingDir "plugins"
+New-Item -ItemType Directory -Path $tsPluginsDir -Force | Out-Null
+foreach ($dll in $modDlls) {
+    Copy-Item (Join-Path $buildOutputDir $dll) -Destination $tsPluginsDir -Force
+    Write-Host "  plugins/$dll" -ForegroundColor Green
+}
+
+$tsZipName = "PeakHeadTracking-v$version-thunderstore.zip"
+$tsZipPath = Join-Path $releaseDir $tsZipName
+if (Test-Path $tsZipPath) { Remove-Item $tsZipPath -Force }
+
+Write-Host ""
+Write-Host "Creating Thunderstore ZIP..." -ForegroundColor Cyan
+
+Push-Location $tsStagingDir
+try {
+    Compress-Archive -Path ".\*" -DestinationPath $tsZipPath -Force
+} finally {
+    Pop-Location
+}
+Remove-Item -Recurse -Force $tsStagingDir
+
+$tsZipSize = (Get-Item $tsZipPath).Length / 1KB
+Write-Host ("  $tsZipPath ({0:N1} KB)" -f $tsZipSize) -ForegroundColor Green
+
 # --- Summary ---
 
 Write-Host ""
 Write-Host "=== Package Complete ===" -ForegroundColor Magenta
 Write-Host ""
-Write-Host ("GitHub Release: $ghZipPath ({0:N1} KB)" -f $ghZipSize) -ForegroundColor Green
-Write-Host ("Nexus Mods:     $nexusZipPath ({0:N1} KB)" -f $nexusZipSize) -ForegroundColor Green
+Write-Host ("GitHub Release:  $ghZipPath ({0:N1} KB)" -f $ghZipSize) -ForegroundColor Green
+Write-Host ("Nexus Mods:      $nexusZipPath ({0:N1} KB)" -f $nexusZipSize) -ForegroundColor Green
+Write-Host ("Thunderstore:    $tsZipPath ({0:N1} KB)" -f $tsZipSize) -ForegroundColor Green
 
-# Output both zip paths for CI capture (one per line)
+# Output all zip paths for CI capture (one per line)
 Write-Output $ghZipPath
 Write-Output $nexusZipPath
+Write-Output $tsZipPath
