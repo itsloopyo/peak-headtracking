@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.2] - 2026-04-11
+
+### Other
+
+- Use absolute URL for README gif
+
 ## [1.0.1] - 2026-04-06
 
 ### Other

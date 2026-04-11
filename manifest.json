@@ -1,6 +1,6 @@
 {
     "name":  "OpenTrack_Compatible_Head_Tracking_for_PEAK",
-    "version_number":  "1.0.1",
+    "version_number":  "1.0.2",
     "description":  "Decoupled head tracking for PEAK using any OpenTrack-compatible tracker - webcam, phone app, or dedicated hardware.",
     "dependencies":  [
                          "BepInEx-BepInExPack_PEAK-5.4.75301"
