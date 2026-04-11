@@ -1,6 +1,6 @@
 # Peak Head Tracking
 
-![Mod GIF](assets/readme-clip.gif)
+![Mod GIF](https://raw.githubusercontent.com/itsloopyo/peak-headtracking/main/assets/readme-clip.gif)
 
 An **unofficial** BepInEx mod that adds head tracking to PEAK via OpenTrack. Look around naturally with your head while your aim stays independent.
 
