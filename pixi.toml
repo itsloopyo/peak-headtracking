@@ -15,5 +15,7 @@ install = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1 R
 package = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/package-release.ps1", depends-on = ["build"] }
 uninstall = "scripts\\uninstall.cmd"
 clean = "dotnet clean src/PeakHeadTracking/PeakHeadTracking.csproj"
+# Bump vendored mod-loader copies to latest upstream within pinned range.
+# Manual; commit the result. CI does not run this.
+update-deps = "powershell -ExecutionPolicy Bypass -File scripts/update-deps.ps1"
 release = "powershell -ExecutionPolicy Bypass -File scripts/release.ps1"
-release-force = "powershell -ExecutionPolicy Bypass -File scripts/release.ps1 -Force"

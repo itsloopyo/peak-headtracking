@@ -306,7 +306,7 @@ namespace PeakHeadTracking.Config
                 ConfigCategories.HOTKEYS,
                 "Toggle Position",
                 KeyCode.PageUp,
-                "Key to toggle positional tracking on/off"
+                "Key to cycle tracking mode (full -> rotation only -> position only)"
             );
 
             ToggleReticleKey = config.Bind(

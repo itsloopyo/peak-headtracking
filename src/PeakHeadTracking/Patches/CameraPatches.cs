@@ -80,6 +80,7 @@ namespace PeakHeadTracking.Patches
         private static float currentPitch = 0f;
 
         private static bool headTrackingEnabled = false;
+        private static bool rotationEnabled = true;
         private static bool hasLoggedFirstApplication = false;
 
         // Pre-processed rotation values - written by CameraController after TrackingProcessor pipeline
@@ -133,6 +134,14 @@ namespace PeakHeadTracking.Patches
             // Update currentYaw/Pitch for any code that reads them
             currentYaw = yaw;
             currentPitch = pitch;
+        }
+
+        /// <summary>
+        /// Enable or disable rotational head tracking. Position tracking is gated separately.
+        /// </summary>
+        public static void SetRotationEnabled(bool enabled)
+        {
+            rotationEnabled = enabled;
         }
 
         /// <summary>
@@ -246,27 +255,38 @@ namespace PeakHeadTracking.Patches
             float pitch = processedPitch;
             float roll = processedRoll;
 
-            // Skip rotation application if no significant head movement
-            if (Mathf.Abs(yaw) < TrackingConstants.MovementThreshold &&
-                Mathf.Abs(pitch) < TrackingConstants.MovementThreshold &&
-                Mathf.Abs(roll) < TrackingConstants.MovementThreshold)
+            bool hasRotMovement = Mathf.Abs(yaw) >= TrackingConstants.MovementThreshold ||
+                                  Mathf.Abs(pitch) >= TrackingConstants.MovementThreshold ||
+                                  Mathf.Abs(roll) >= TrackingConstants.MovementThreshold;
+            bool positionActive = positionProcessor != null && positionEnabledConfig != null && positionEnabledConfig.Value && receiver != null;
+            bool applyRotation = rotationEnabled && hasRotMovement;
+
+            if (!applyRotation && !positionActive)
                 return;
 
             // Apply rotation via view matrix — all axes in camera-local space
             // so yaw always feels like horizontal rotation regardless of game camera pitch.
             // This modifies worldToCameraMatrix WITHOUT touching camera.transform
-            ViewMatrixModifier.ApplyHeadRotation(cam, yaw, -pitch, roll);
-            matrixModifiedThisFrame = true;
+            if (applyRotation)
+            {
+                ViewMatrixModifier.ApplyHeadRotation(cam, yaw, -pitch, roll);
+                matrixModifiedThisFrame = true;
+            }
 
             // Apply position offset in camera space via matrix translation
-            if (positionProcessor != null && positionEnabledConfig != null && positionEnabledConfig.Value && receiver != null)
+            if (positionActive)
             {
+                if (!matrixModifiedThisFrame)
+                {
+                    cam.ResetWorldToCameraMatrix();
+                }
                 var rawPos = receiver.GetLatestPosition();
                 var interpolatedPos = positionInterpolator.Update(rawPos, Time.deltaTime);
                 var headRotQ = QuaternionUtils.FromYawPitchRoll(yaw, -pitch, roll);
                 Vec3 posOffset = positionProcessor.Process(interpolatedPos, headRotQ, Time.deltaTime);
                 // Translate in camera space: pre-multiply with translation matrix
                 cam.worldToCameraMatrix = Matrix4x4.Translate(-posOffset.ToUnity()) * cam.worldToCameraMatrix;
+                matrixModifiedThisFrame = true;
             }
 
             // Store and override near clip plane

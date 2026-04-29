@@ -6,7 +6,8 @@ using PeakHeadTracking.Camera;
 namespace PeakHeadTracking.Input
 {
     /// <summary>
-    /// Manages hotkey input for runtime control
+    /// Manages hotkey input for runtime control.
+    /// Each standard action has two equivalent bindings (nav-cluster + Ctrl+Shift chord).
     /// </summary>
     public class HotkeyManager : MonoBehaviour
     {
@@ -14,15 +15,15 @@ namespace PeakHeadTracking.Input
         private CameraController cameraController;
         private OpenTrackReceiver coreReceiver;
 
-        // Key press state tracking
+        // Edge-detection state for each action (covers both binding sets per action)
         private bool wasTogglePressed = false;
         private bool wasRecenterPressed = false;
         private bool wasReloadPressed = false;
-        private bool wasPositionTogglePressed = false;
+        private bool wasCyclePressed = false;
 
-        /// <summary>
-        /// Initialize the hotkey manager
-        /// </summary>
+        // Three-state cycle index: 0 = full, 1 = rotation only, 2 = position only.
+        private int trackingModeIndex = 0;
+
         public void Initialize(ModConfiguration modConfig, CameraController camController, OpenTrackReceiver trackReceiver)
         {
             config = modConfig;
@@ -32,27 +33,26 @@ namespace PeakHeadTracking.Input
             PeakHeadTrackingPlugin.Logger.LogDebug("HotkeyManager initialized");
         }
 
-        /// <summary>
-        /// Unity Update - check for hotkey presses
-        /// </summary>
         private void Update()
         {
             if (config == null) return;
             HandleToggleTracking();
             HandleRecenterView();
             HandleReloadConfig();
-            HandleTogglePosition();
+            HandleCycleTrackingMode();
         }
 
-        /// <summary>
-        /// Handle toggle tracking hotkey
-        /// </summary>
+        private static bool IsChordHeld(KeyCode letter)
+        {
+            return (UnityEngine.Input.GetKey(KeyCode.LeftControl) || UnityEngine.Input.GetKey(KeyCode.RightControl))
+                && (UnityEngine.Input.GetKey(KeyCode.LeftShift) || UnityEngine.Input.GetKey(KeyCode.RightShift))
+                && UnityEngine.Input.GetKey(letter);
+        }
+
         private void HandleToggleTracking()
         {
-            KeyCode key = config.ToggleTrackingKey.Value;
-            bool isPressed = UnityEngine.Input.GetKey(key);
+            bool isPressed = UnityEngine.Input.GetKey(config.ToggleTrackingKey.Value) || IsChordHeld(KeyCode.Y);
 
-            // Detect key down (transition from not pressed to pressed)
             if (isPressed && !wasTogglePressed)
             {
                 bool newState = !config.TrackingEnabled.Value;
@@ -71,15 +71,10 @@ namespace PeakHeadTracking.Input
             wasTogglePressed = isPressed;
         }
 
-        /// <summary>
-        /// Handle recenter view hotkey
-        /// </summary>
         private void HandleRecenterView()
         {
-            KeyCode key = config.RecenterKey.Value;
-            bool isPressed = UnityEngine.Input.GetKey(key);
+            bool isPressed = UnityEngine.Input.GetKey(config.RecenterKey.Value) || IsChordHeld(KeyCode.T);
 
-            // Detect key down
             if (isPressed && !wasRecenterPressed)
             {
                 cameraController.RecenterView();
@@ -89,20 +84,14 @@ namespace PeakHeadTracking.Input
             wasRecenterPressed = isPressed;
         }
 
-        /// <summary>
-        /// Handle reload configuration hotkey
-        /// </summary>
         private void HandleReloadConfig()
         {
-            KeyCode key = config.ReloadConfigKey.Value;
-            bool isPressed = UnityEngine.Input.GetKey(key);
+            bool isPressed = UnityEngine.Input.GetKey(config.ReloadConfigKey.Value);
 
-            // Detect key down
             if (isPressed && !wasReloadPressed)
             {
                 config.Reload();
 
-                // Restart receiver with new port
                 coreReceiver.Dispose();
                 coreReceiver.Start(config.UdpPort.Value);
 
@@ -113,31 +102,60 @@ namespace PeakHeadTracking.Input
         }
 
         /// <summary>
-        /// Handle toggle position hotkey
+        /// Cycle through the three tracking modes:
+        ///   0: full head tracking (rotation + position)
+        ///   1: rotation only (position disabled)
+        ///   2: position only (rotation disabled)
+        /// Bound to the legacy TogglePositionKey (default Page Up) and Ctrl+Shift+G.
         /// </summary>
-        private void HandleTogglePosition()
+        private void HandleCycleTrackingMode()
         {
-            KeyCode key = config.TogglePositionKey.Value;
-            bool isPressed = UnityEngine.Input.GetKey(key);
+            bool isPressed = UnityEngine.Input.GetKey(config.TogglePositionKey.Value) || IsChordHeld(KeyCode.G);
 
-            if (isPressed && !wasPositionTogglePressed)
+            if (isPressed && !wasCyclePressed)
             {
-                config.PositionEnabled.Value = !config.PositionEnabled.Value;
-                PeakHeadTrackingPlugin.Logger.LogInfo($"Position tracking {(config.PositionEnabled.Value ? "enabled" : "disabled")}");
+                trackingModeIndex = (trackingModeIndex + 1) % 3;
+                ApplyTrackingMode();
             }
 
-            wasPositionTogglePressed = isPressed;
+            wasCyclePressed = isPressed;
         }
 
-        /// <summary>
-        /// Reset key press states
-        /// </summary>
+        private void ApplyTrackingMode()
+        {
+            bool rotation;
+            bool position;
+            string label;
+            switch (trackingModeIndex)
+            {
+                case 1:
+                    rotation = true;
+                    position = false;
+                    label = "rotation only (position disabled)";
+                    break;
+                case 2:
+                    rotation = false;
+                    position = true;
+                    label = "position only (rotation disabled)";
+                    break;
+                default:
+                    rotation = true;
+                    position = true;
+                    label = "full (rotation + position)";
+                    break;
+            }
+
+            config.PositionEnabled.Value = position;
+            Patches.CameraPatches.SetRotationEnabled(rotation);
+            PeakHeadTrackingPlugin.Logger.LogInfo($"Tracking mode: {label}");
+        }
+
         public void ResetStates()
         {
             wasTogglePressed = false;
             wasRecenterPressed = false;
             wasReloadPressed = false;
-            wasPositionTogglePressed = false;
+            wasCyclePressed = false;
         }
 
         private void OnDisable()

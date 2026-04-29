@@ -22,8 +22,7 @@
 #>
 param(
     [Parameter(Position=0)]
-    [string]$Version = "",
-    [switch]$Force
+    [string]$Version = ""
 )
 
 Set-StrictMode -Version Latest
@@ -46,67 +45,46 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
     Write-Host $currentVersion -ForegroundColor White
     Write-Host ""
     Write-Host "Usage: " -NoNewline -ForegroundColor Yellow
-    Write-Host "pixi run release <version>" -ForegroundColor White
+    Write-Host "pixi run release <major|minor|patch|X.Y.Z>" -ForegroundColor White
     Write-Host ""
     Write-Host "Example: " -NoNewline -ForegroundColor Yellow
-    Write-Host "pixi run release 1.1.0" -ForegroundColor White
+    Write-Host "pixi run release patch" -ForegroundColor White
     exit 0
 }
 
-# Validate version format
-if ($Version -notmatch '^\d+\.\d+\.\d+$') {
-    Write-Host "Error: Invalid version format '$Version'" -ForegroundColor Red
-    Write-Host "Use semantic versioning: X.Y.Z (e.g., 1.0.0, 1.2.3)" -ForegroundColor Yellow
+# Resolve major/minor/patch into a concrete version (or accept literal X.Y.Z)
+try {
+    $Version = Resolve-ReleaseVersion -Argument $Version -CurrentVersion $currentVersion
+} catch {
+    Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
 }
 
 $tagName = "v$Version"
 
-if (-not $Force) {
-    # Check if we're on main branch
-    $currentBranch = git rev-parse --abbrev-ref HEAD
-    if ($currentBranch -ne "main") {
-        Write-Host "Error: Must be on 'main' branch to release (currently on '$currentBranch')" -ForegroundColor Red
-        exit 1
-    }
+# Preconditions are the safety net. There is no further confirmation gate;
+# `pixi run release ...` is the consent.
+$currentBranch = git rev-parse --abbrev-ref HEAD
+if ($currentBranch -ne "main") {
+    Write-Host "Error: Must be on 'main' branch to release (currently on '$currentBranch')" -ForegroundColor Red
+    exit 1
+}
 
-    # Check for uncommitted changes (prebuilt/ is excluded since the release overwrites it)
-    $status = git status --porcelain -- ':!prebuilt/'
-    if ($status) {
-        Write-Host "Error: Working directory has uncommitted changes" -ForegroundColor Red
-        Write-Host $status -ForegroundColor Gray
-        Write-Host "Please commit or stash changes before releasing" -ForegroundColor Yellow
-        exit 1
-    }
+$status = git status --porcelain -- ':!prebuilt/'
+if ($status) {
+    Write-Host "Error: Working directory has uncommitted changes" -ForegroundColor Red
+    Write-Host $status -ForegroundColor Gray
+    exit 1
+}
 
-    # Check if tag already exists
-    $existingTag = git tag -l $tagName
-    if ($existingTag) {
-        Write-Host "Error: Tag '$tagName' already exists" -ForegroundColor Red
-        exit 1
-    }
-} else {
-    Write-Host "WARNING: --force mode, skipping git checks" -ForegroundColor Yellow
+$existingTag = git tag -l $tagName
+if ($existingTag) {
+    Write-Host "Error: Tag '$tagName' already exists" -ForegroundColor Red
+    exit 1
 }
 
 Write-Host "Current version: $currentVersion" -ForegroundColor Gray
 Write-Host "New version:     $Version" -ForegroundColor Green
-Write-Host ""
-
-# Confirm
-Write-Host "This will:" -ForegroundColor Yellow
-Write-Host "  1. Update version in csproj and plugin source" -ForegroundColor White
-Write-Host "  2. Build and update prebuilt DLLs" -ForegroundColor White
-Write-Host "  3. Commit all changes" -ForegroundColor White
-Write-Host "  4. Create tag $tagName and push (triggers release workflow)" -ForegroundColor White
-Write-Host ""
-
-$confirm = Read-Host "Continue? (y/N)"
-if ($confirm -ne 'y' -and $confirm -ne 'Y') {
-    Write-Host "Cancelled" -ForegroundColor Yellow
-    exit 0
-}
-
 Write-Host ""
 
 # Step 1: Update version in csproj
@@ -177,10 +155,9 @@ if (-not $hasExistingTags) {
                 ".github/"
             )
         }
-        if ($Force) { $changelogArgs.IncludeAll = $true }
         New-ChangelogFromCommits @changelogArgs
     } catch {
-        # No commits found (e.g. after squash) — write a basic entry
+        # No commits found (e.g. after squash) - write a basic entry
         Write-Host "  No commits in range, writing manual changelog entry" -ForegroundColor Yellow
         $date = Get-Date -Format 'yyyy-MM-dd'
         $entry = "## [$Version] - $date`n`nRelease $Version.`n"

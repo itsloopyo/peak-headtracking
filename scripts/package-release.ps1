@@ -49,6 +49,13 @@ if (-not (Test-Path $releaseDir)) {
     New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
 }
 
+# Vendoring is install-time source of truth; refresh manually with `pixi run update-deps`.
+$vendorBepDir = Join-Path $projectDir "vendor\bepinex"
+$vendorBepZip = Join-Path $vendorBepDir "BepInExPack_PEAK.zip"
+if (-not (Test-Path $vendorBepZip)) {
+    throw "Bundled BepInEx vendor zip missing: $vendorBepZip. Run 'pixi run update-deps' to refresh."
+}
+
 # --- GitHub Release ZIP (with installer) ---
 
 Write-Host "--- GitHub Release ZIP ---" -ForegroundColor Yellow
@@ -72,6 +79,22 @@ foreach ($dll in $modDlls) {
     Copy-Item (Join-Path $buildOutputDir $dll) -Destination $pluginsDir -Force
     Write-Host "  plugins/$dll" -ForegroundColor Green
 }
+
+# Bundle vendored BepInEx (LGPL-2.1, see THIRD-PARTY-NOTICES.md) as install-time source.
+$ghVendorDir = Join-Path $ghStagingDir "vendor\bepinex"
+New-Item -ItemType Directory -Path $ghVendorDir -Force | Out-Null
+foreach ($vendorFile in @("BepInExPack_PEAK.zip", "LICENSE", "README.md")) {
+    $src = Join-Path $vendorBepDir $vendorFile
+    if (Test-Path $src) {
+        Copy-Item $src -Destination $ghVendorDir -Force
+        Write-Host "  vendor/bepinex/$vendorFile" -ForegroundColor Green
+    } elseif ($vendorFile -eq "BepInExPack_PEAK.zip") {
+        throw "Required vendor file missing: $src. Run 'pixi run update-deps' to refresh."
+    }
+}
+
+# Bundle the shared detection bundle for install.cmd's shim.
+Copy-SharedBundle -StagingDir $ghStagingDir -CoreRoot (Join-Path $projectDir 'cameraunlock-core')
 
 # Copy documentation
 $docFiles = @("README.md", "LICENSE", "CHANGELOG.md", "THIRD-PARTY-NOTICES.md")
