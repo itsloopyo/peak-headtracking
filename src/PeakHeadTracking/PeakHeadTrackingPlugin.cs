@@ -21,7 +21,7 @@ namespace PeakHeadTracking
         // Plugin metadata constants
         public const string PLUGIN_GUID = "com.cameraunlock.peak.headtracking";
         public const string PLUGIN_NAME = "Peak Head Tracking";
-        public const string PLUGIN_VERSION = "1.0.2";
+        public const string PLUGIN_VERSION = "1.1.0";
 
         // Static logger instance for global access
         internal static new ManualLogSource Logger;
