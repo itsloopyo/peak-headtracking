@@ -9,7 +9,7 @@ Refresh manually with `pixi run update-deps`, then commit.
 - Asset: `5.4.75301`
 - Upstream URL: https://thunderstore.io/package/download/BepInEx/BepInExPack_PEAK/5.4.75301/
 - SHA-256: `a71432613ab0b2f560046bc341d949c9d853b4f5d5223ab5e7f2ef1f113522e7`
-- Fetched at: 2026-04-30T21:06:44.6195226+01:00
+- Fetched at: 2026-04-30T21:58:18.4328555+01:00
 - Source: direct-url
 
 Do not edit this directory by hand. Run ``pixi run package`` (or CI release) to refresh.
