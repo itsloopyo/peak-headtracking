@@ -22,13 +22,12 @@ $projectRoot = Split-Path -Parent $scriptDir
 
 Import-Module (Join-Path $projectRoot "cameraunlock-core\powershell\DevDeploy.psm1") -Force
 Import-Module (Join-Path $projectRoot "cameraunlock-core\powershell\ModDeployment.psm1") -Force
+$buildOutput = Join-Path $projectRoot "src\PeakHeadTracking\bin\$Configuration\net472"
 $result = Invoke-DevDeployBepInEx `
     -GameId 'peak' `
     -GameDisplayName 'Peak' `
-    -ProjectRoot $projectRoot `
-    -ProjectName 'PeakHeadTracking' `
+    -BuildOutputPath $buildOutput `
     -ModDllName 'PeakHeadTracking.dll' `
-    -Configuration $Configuration `
     -ExtraDlls @('CameraUnlock.Core.dll', 'CameraUnlock.Core.Unity.dll') `
     -GivenPath $GivenPath `
     -EnsureLoader
