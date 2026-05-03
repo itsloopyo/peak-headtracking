@@ -19,6 +19,7 @@ namespace PeakHeadTracking.Config
         // General Settings
         public ConfigEntry<bool> TrackingEnabled { get; private set; }
         public ConfigEntry<bool> EnableAudioFeedback { get; private set; }
+        public ConfigEntry<bool> WorldSpaceYaw { get; private set; }
 
         // Sensitivity Settings
         public ConfigEntry<float> YawSensitivity { get; private set; }
@@ -51,6 +52,7 @@ namespace PeakHeadTracking.Config
         public ConfigEntry<KeyCode> ReloadConfigKey { get; private set; }
         public ConfigEntry<KeyCode> TogglePositionKey { get; private set; }
         public ConfigEntry<KeyCode> ToggleReticleKey { get; private set; }
+        public ConfigEntry<KeyCode> YawModeKey { get; private set; }
 
         // UI Settings
         public ConfigEntry<bool> ShowReticle { get; private set; }
@@ -124,6 +126,15 @@ namespace PeakHeadTracking.Config
                 "Enable Audio Feedback",
                 true,
                 "Play sounds for tracking state changes"
+            );
+
+            WorldSpaceYaw = config.Bind(
+                ConfigCategories.GENERAL,
+                "World Space Yaw",
+                true,
+                "Yaw mode: true = horizon-locked yaw (default), false = camera-local. " +
+                "Horizon-locked rotates yaw around the world up-axis so 'up' stays constant. " +
+                "Camera-local rotates around the camera's current up-axis (rolls/leans at extreme pitches)."
             );
 
             // Sensitivity Settings
@@ -314,6 +325,13 @@ namespace PeakHeadTracking.Config
                 "Toggle Reticle",
                 KeyCode.Insert,
                 "Key to toggle reticle compensation on/off"
+            );
+
+            YawModeKey = config.Bind(
+                ConfigCategories.HOTKEYS,
+                "Yaw Mode Key",
+                KeyCode.PageDown,
+                "Key to toggle between world-space (horizon-locked) and camera-local yaw"
             );
 
             // UI Settings

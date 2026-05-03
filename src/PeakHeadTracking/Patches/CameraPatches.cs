@@ -36,6 +36,9 @@ namespace PeakHeadTracking.Patches
         // Reticle compensation
         private static ConfigEntry<bool> showReticleConfig;
 
+        // Yaw mode: true = world-space (horizon-locked), false = camera-local
+        private static ConfigEntry<bool> worldSpaceYawConfig;
+
         // Near clip plane override
         private static ConfigEntry<float> nearClipConfig;
         private static float storedNearClipPlane;
@@ -63,6 +66,11 @@ namespace PeakHeadTracking.Patches
         public static void SetReticleConfig(ConfigEntry<bool> config)
         {
             showReticleConfig = config;
+        }
+
+        public static void SetYawModeConfig(ConfigEntry<bool> config)
+        {
+            worldSpaceYawConfig = config;
         }
 
         /// <summary>
@@ -264,12 +272,26 @@ namespace PeakHeadTracking.Patches
             if (!applyRotation && !positionActive)
                 return;
 
-            // Apply rotation via view matrix — all axes in camera-local space
-            // so yaw always feels like horizontal rotation regardless of game camera pitch.
-            // This modifies worldToCameraMatrix WITHOUT touching camera.transform
+            // Apply rotation via view matrix.
+            // World-space (default): yaw rotates around world up, pitch/roll camera-local
+            //   - looking down + yawing still pans across the floor (horizon-stable).
+            // Camera-local: all three axes composed and applied in camera space
+            //   - yaw at extreme pitches rolls/leans the view.
+            // This modifies worldToCameraMatrix WITHOUT touching camera.transform,
+            // so cam.transform.forward (the game's aim direction) is unchanged in both modes.
             if (applyRotation)
             {
-                ViewMatrixModifier.ApplyHeadRotation(cam, yaw, -pitch, roll);
+                bool worldSpaceYaw = worldSpaceYawConfig != null ? worldSpaceYawConfig.Value : true;
+                if (worldSpaceYaw)
+                {
+                    // ApplyHeadRotationDecomposed does not invert roll internally,
+                    // so pass -roll to match the camera-local branch's sign convention.
+                    ViewMatrixModifier.ApplyHeadRotationDecomposed(cam, yaw, -pitch, -roll);
+                }
+                else
+                {
+                    ViewMatrixModifier.ApplyHeadRotation(cam, yaw, -pitch, roll);
+                }
                 matrixModifiedThisFrame = true;
             }
 

@@ -20,6 +20,7 @@ namespace PeakHeadTracking.Input
         private bool wasRecenterPressed = false;
         private bool wasReloadPressed = false;
         private bool wasCyclePressed = false;
+        private bool wasYawModePressed = false;
 
         // Three-state cycle index: 0 = full, 1 = rotation only, 2 = position only.
         private int trackingModeIndex = 0;
@@ -40,6 +41,7 @@ namespace PeakHeadTracking.Input
             HandleRecenterView();
             HandleReloadConfig();
             HandleCycleTrackingMode();
+            HandleToggleYawMode();
         }
 
         private static bool IsChordHeld(KeyCode letter)
@@ -150,12 +152,31 @@ namespace PeakHeadTracking.Input
             PeakHeadTrackingPlugin.Logger.LogInfo($"Tracking mode: {label}");
         }
 
+        /// <summary>
+        /// Toggle world-space (horizon-locked) vs camera-local yaw.
+        /// Bound to YawModeKey (default Page Down) and Ctrl+Shift+H.
+        /// </summary>
+        private void HandleToggleYawMode()
+        {
+            bool isPressed = UnityEngine.Input.GetKey(config.YawModeKey.Value) || IsChordHeld(KeyCode.H);
+
+            if (isPressed && !wasYawModePressed)
+            {
+                bool newWorldSpace = !config.WorldSpaceYaw.Value;
+                config.WorldSpaceYaw.Value = newWorldSpace;
+                PeakHeadTrackingPlugin.Logger.LogInfo($"Yaw mode: {(newWorldSpace ? "world-space (horizon-locked)" : "camera-local")}");
+            }
+
+            wasYawModePressed = isPressed;
+        }
+
         public void ResetStates()
         {
             wasTogglePressed = false;
             wasRecenterPressed = false;
             wasReloadPressed = false;
             wasCyclePressed = false;
+            wasYawModePressed = false;
         }
 
         private void OnDisable()

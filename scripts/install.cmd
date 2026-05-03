@@ -15,7 +15,7 @@ set "FRAMEWORK_TYPE=BepInEx"
 set "BEPINEX_ARCH=x64"
 set "BEPINEX_VENDOR_ZIP_NAME=BepInExPack_PEAK.zip"
 set "BEPINEX_SUBFOLDER=BepInExPack_PEAK"
-set "MOD_CONTROLS=Controls:&echo   Home    - Recenter head tracking&echo   End     - Toggle head tracking on/off&echo   Page Up - Toggle position tracking on/off"
+set "MOD_CONTROLS=Controls:&echo   Home      - Recenter head tracking&echo   End       - Toggle head tracking on/off&echo   Page Up   - Cycle tracking mode&echo   Page Down - Toggle world/local yaw"
 :: --- END CONFIG BLOCK ---
 
 set "WRAPPER_DIR=%~dp0"

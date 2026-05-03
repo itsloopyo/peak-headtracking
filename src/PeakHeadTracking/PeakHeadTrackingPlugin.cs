@@ -197,6 +197,7 @@ namespace PeakHeadTracking
             Patches.CameraPatches.SetPositionProcessors(positionProcessor, positionInterpolator, modConfig.PositionEnabled);
             Patches.CameraPatches.SetNearClipConfig(modConfig.NearClipOverride);
             Patches.CameraPatches.SetReticleConfig(modConfig.ShowReticle);
+            Patches.CameraPatches.SetYawModeConfig(modConfig.WorldSpaceYaw);
 
             // Add hotkey manager component
             hotkeyManager = trackingManagerObject.AddComponent<Input.HotkeyManager>();

@@ -79,6 +79,7 @@ Two equivalent binding sets - use whichever your keyboard has:
 | Recenter            | `Home`      | `Ctrl+Shift+T`  |
 | Toggle tracking     | `End`       | `Ctrl+Shift+Y`  |
 | Cycle tracking mode | `Page Up`   | `Ctrl+Shift+G`  |
+| Toggle yaw mode     | `Page Down` | `Ctrl+Shift+H`  |
 
 `Page Up` / `Ctrl+Shift+G` cycles tracking mode:
 
@@ -101,6 +102,7 @@ Packet Buffer Size = 100         # Max packets to buffer (10-500)
 Tracking Enabled = true          # Start with tracking enabled
 Position Enabled = true          # Enable lean/positional tracking (6DOF)
 Enable Audio Feedback = true     # Play sounds for tracking state changes
+World Space Yaw = true           # true = horizon-locked yaw (default), false = camera-local yaw
 
 [Sensitivity]
 Yaw Sensitivity = 1.0            # Horizontal rotation (0.1-5.0)
@@ -138,6 +140,7 @@ Roll Deadzone = 0                # Roll deadzone in degrees (0-10)
 Toggle Tracking = End
 Recenter View = Home
 Toggle Position = PageUp
+Yaw Mode Key = PageDown
 
 [Advanced]
 Debug Logging = false            # Enable detailed debug logging
@@ -167,6 +170,9 @@ Near Clip Override = 0.15        # Prevents seeing through player model during h
 - Increase `Smoothing` in the config file (remote connections auto-use 0.15 minimum)
 - Enable deadzones in the `[Deadzone]` section
 - Improve lighting for webcam-based tracking
+
+**Yaw feels wrong when looking up or down at extreme angles:**
+- Try toggling between world-locked and camera-local yaw with `Page Down`. World-locked (default) is horizon-stable; camera-local follows the camera's current up-axis.
 
 ## Updating
 
