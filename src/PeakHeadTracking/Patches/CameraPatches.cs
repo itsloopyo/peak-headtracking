@@ -6,6 +6,7 @@ using CameraUnlock.Core.Protocol;
 using CameraUnlock.Core.Unity.Extensions;
 using CameraUnlock.Core.Unity.Rendering;
 using CameraUnlock.Core.Unity.Tracking;
+using CameraUnlock.Core.Unity.Utilities;
 using UnityEngine;
 
 namespace PeakHeadTracking.Patches
@@ -25,6 +26,16 @@ namespace PeakHeadTracking.Patches
     /// </summary>
     public static class CameraPatches
     {
+        // Camera.main calls FindGameObjectWithTag internally; cache it per frame since
+        // render callbacks fire once per camera per frame (shadows, reflections, UI cams)
+        private static readonly PerFrameCache<UnityEngine.Camera> mainCameraCache =
+            new PerFrameCache<UnityEngine.Camera>(() => UnityEngine.Camera.main);
+
+        /// <summary>
+        /// The main camera, fetched at most once per frame.
+        /// </summary>
+        internal static UnityEngine.Camera MainCamera => mainCameraCache.Get();
+
         // Core receiver reference - set by plugin during initialization
         private static OpenTrackReceiver receiver;
 
@@ -228,7 +239,7 @@ namespace PeakHeadTracking.Patches
         private static void OnPreRender(UnityEngine.Camera cam)
         {
             // Only apply to the main camera
-            var mainCamera = UnityEngine.Camera.main;
+            var mainCamera = MainCamera;
             if (mainCamera == null)
             {
                 LogDiagnostic("[HeadTracking] Camera.main is null - waiting for camera");
@@ -342,7 +353,7 @@ namespace PeakHeadTracking.Patches
         private static void OnPostRender(UnityEngine.Camera cam)
         {
             // Only restore for main camera
-            var mainCamera = UnityEngine.Camera.main;
+            var mainCamera = MainCamera;
             if (mainCamera == null || cam != mainCamera)
             {
                 return;

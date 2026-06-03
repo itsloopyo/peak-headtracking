@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using CameraUnlock.Core.Reflection;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -68,19 +69,19 @@ namespace PeakHeadTracking.Patches
                     var localCharacterField = characterType.GetField("localCharacter", BindingFlags.Public | BindingFlags.Static);
                     if (localCharacterField != null)
                     {
-                        getLocalCharacter = ReflectionUtils.CreateStaticFieldGetter<object>(localCharacterField);
+                        getLocalCharacter = CompiledGetters.ForStaticField(localCharacterField);
                     }
                 }
 
                 // TODO: pause menu detection is disabled due to initialization order — ReticleCompensation.InitializeReticleReflection() runs after this on first frame
                 if (ReticleCompensation.GUIManagerType != null && ReticleCompensation.GUIManagerInstanceField != null)
                 {
-                    getGUIManagerInstance = ReflectionUtils.CreateStaticFieldGetter<object>(ReticleCompensation.GUIManagerInstanceField);
+                    getGUIManagerInstance = CompiledGetters.ForStaticField(ReticleCompensation.GUIManagerInstanceField);
 
                     var pauseMenuField = ReticleCompensation.GUIManagerType.GetField("pauseMenu", BindingFlags.Public | BindingFlags.Instance);
                     if (pauseMenuField != null)
                     {
-                        getPauseMenu = ReflectionUtils.CreateInstanceFieldGetter<object>(ReticleCompensation.GUIManagerType, pauseMenuField);
+                        getPauseMenu = CompiledGetters.ForInstanceField(pauseMenuField);
                     }
                 }
 
@@ -121,7 +122,7 @@ namespace PeakHeadTracking.Patches
                     var loadingPropertyInfo = loadingScreenHandlerType.GetProperty("loading", BindingFlags.Public | BindingFlags.Static);
                     if (loadingPropertyInfo != null)
                     {
-                        getIsLoading = ReflectionUtils.CreateStaticPropertyGetter<bool>(loadingPropertyInfo);
+                        getIsLoading = CompiledGetters.ForStaticProperty<bool>(loadingPropertyInfo);
                     }
                 }
             }

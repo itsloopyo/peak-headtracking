@@ -68,7 +68,7 @@ namespace PeakHeadTracking.Patches
             if (!CameraPatches.IsHeadTrackingEnabled())
                 return;
 
-            UnityEngine.Camera cam = UnityEngine.Camera.main;
+            UnityEngine.Camera cam = CameraPatches.MainCamera;
             if (cam == null)
                 return;
 
@@ -95,7 +95,7 @@ namespace PeakHeadTracking.Patches
             if (!CameraPatches.IsHeadTrackingEnabled())
                 return;
 
-            UnityEngine.Camera cam = UnityEngine.Camera.main;
+            UnityEngine.Camera cam = CameraPatches.MainCamera;
             if (cam == null)
                 return;
 

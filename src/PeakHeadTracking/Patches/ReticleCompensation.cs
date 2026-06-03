@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using CameraUnlock.Core.Reflection;
 using CameraUnlock.Core.Unity.Extensions;
 using UnityEngine;
 
@@ -68,8 +69,8 @@ namespace PeakHeadTracking.Patches
                 throw new InvalidOperationException("[Reticle] GUIManager required fields not found - game version may be incompatible");
             }
 
-            getGUIManagerInstance = ReflectionUtils.CreateStaticFieldGetter<object>(instanceField);
-            getReticleDefault = ReflectionUtils.CreateInstanceFieldGetter<object>(guiManagerType, reticleDefaultField);
+            getGUIManagerInstance = CompiledGetters.ForStaticField(instanceField);
+            getReticleDefault = CompiledGetters.ForInstanceField(reticleDefaultField);
 
             // Interaction text elements — optional, don't fail if missing
             string[] interactFields = { "interactName", "interactPromptPrimary", "interactPromptSecondary", "interactPromptHold", "interactPromptLunge" };
@@ -78,7 +79,7 @@ namespace PeakHeadTracking.Patches
             {
                 var field = guiManagerType.GetField(interactFields[i], BindingFlags.Public | BindingFlags.Instance);
                 if (field != null)
-                    interactGetters[i] = ReflectionUtils.CreateInstanceFieldGetter<object>(guiManagerType, field);
+                    interactGetters[i] = CompiledGetters.ForInstanceField(field);
             }
             getInteractName = interactGetters[0];
             getInteractPromptPrimary = interactGetters[1];

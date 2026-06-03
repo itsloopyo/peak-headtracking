@@ -1,5 +1,6 @@
 using UnityEngine;
 using CameraUnlock.Core.Protocol;
+using CameraUnlock.Core.Unity.Extensions;
 using PeakHeadTracking.Config;
 using PeakHeadTracking.Camera;
 
@@ -7,20 +8,14 @@ namespace PeakHeadTracking.Input
 {
     /// <summary>
     /// Manages hotkey input for runtime control.
-    /// Each standard action has two equivalent bindings (nav-cluster + Ctrl+Shift chord).
+    /// Each standard action has two equivalent bindings (nav-cluster + Ctrl+Shift chord),
+    /// using the shared ChordHotkeys letter assignments from cameraunlock-core.
     /// </summary>
     public class HotkeyManager : MonoBehaviour
     {
         private ModConfiguration config;
         private CameraController cameraController;
         private OpenTrackReceiver coreReceiver;
-
-        // Edge-detection state for each action (covers both binding sets per action)
-        private bool wasTogglePressed = false;
-        private bool wasRecenterPressed = false;
-        private bool wasReloadPressed = false;
-        private bool wasCyclePressed = false;
-        private bool wasYawModePressed = false;
 
         // Three-state cycle index: 0 = full, 1 = rotation only, 2 = position only.
         private int trackingModeIndex = 0;
@@ -37,70 +32,57 @@ namespace PeakHeadTracking.Input
         private void Update()
         {
             if (config == null) return;
-            HandleToggleTracking();
-            HandleRecenterView();
-            HandleReloadConfig();
-            HandleCycleTrackingMode();
-            HandleToggleYawMode();
-        }
 
-        private static bool IsChordHeld(KeyCode letter)
-        {
-            return (UnityEngine.Input.GetKey(KeyCode.LeftControl) || UnityEngine.Input.GetKey(KeyCode.RightControl))
-                && (UnityEngine.Input.GetKey(KeyCode.LeftShift) || UnityEngine.Input.GetKey(KeyCode.RightShift))
-                && UnityEngine.Input.GetKey(letter);
-        }
-
-        private void HandleToggleTracking()
-        {
-            bool isPressed = UnityEngine.Input.GetKey(config.ToggleTrackingKey.Value) || IsChordHeld(KeyCode.Y);
-
-            if (isPressed && !wasTogglePressed)
+            if (ChordHotkeys.IsActionPressed(config.ToggleTrackingKey.Value, ChordHotkeys.ToggleLetter))
             {
-                bool newState = !config.TrackingEnabled.Value;
-                config.TrackingEnabled.Value = newState;
-
-                if (newState && !coreReceiver.IsReceiving && !coreReceiver.IsFailed)
-                {
-                    coreReceiver.Start(config.UdpPort.Value);
-                }
-
-                cameraController.SetTrackingEnabled(newState);
-
-                PeakHeadTrackingPlugin.Logger.LogInfo($"Tracking toggled: {(newState ? "ON" : "OFF")}");
+                ToggleTracking();
             }
 
-            wasTogglePressed = isPressed;
-        }
-
-        private void HandleRecenterView()
-        {
-            bool isPressed = UnityEngine.Input.GetKey(config.RecenterKey.Value) || IsChordHeld(KeyCode.T);
-
-            if (isPressed && !wasRecenterPressed)
+            if (ChordHotkeys.IsActionPressed(config.RecenterKey.Value, ChordHotkeys.RecenterLetter))
             {
                 cameraController.RecenterView();
                 PeakHeadTrackingPlugin.Logger.LogInfo("View recentered");
             }
 
-            wasRecenterPressed = isPressed;
-        }
-
-        private void HandleReloadConfig()
-        {
-            bool isPressed = UnityEngine.Input.GetKey(config.ReloadConfigKey.Value);
-
-            if (isPressed && !wasReloadPressed)
+            if (UnityEngine.Input.GetKeyDown(config.ReloadConfigKey.Value))
             {
-                config.Reload();
-
-                coreReceiver.Dispose();
-                coreReceiver.Start(config.UdpPort.Value);
-
-                PeakHeadTrackingPlugin.Logger.LogInfo("Configuration reloaded");
+                ReloadConfig();
             }
 
-            wasReloadPressed = isPressed;
+            if (ChordHotkeys.IsActionPressed(config.TogglePositionKey.Value, ChordHotkeys.PositionLetter))
+            {
+                CycleTrackingMode();
+            }
+
+            if (ChordHotkeys.IsActionPressed(config.YawModeKey.Value, ChordHotkeys.FourthToggleLetter))
+            {
+                ToggleYawMode();
+            }
+        }
+
+        private void ToggleTracking()
+        {
+            bool newState = !config.TrackingEnabled.Value;
+            config.TrackingEnabled.Value = newState;
+
+            if (newState && !coreReceiver.IsReceiving && !coreReceiver.IsFailed)
+            {
+                coreReceiver.Start(config.UdpPort.Value);
+            }
+
+            cameraController.SetTrackingEnabled(newState);
+
+            PeakHeadTrackingPlugin.Logger.LogInfo($"Tracking toggled: {(newState ? "ON" : "OFF")}");
+        }
+
+        private void ReloadConfig()
+        {
+            config.Reload();
+
+            coreReceiver.Dispose();
+            coreReceiver.Start(config.UdpPort.Value);
+
+            PeakHeadTrackingPlugin.Logger.LogInfo("Configuration reloaded");
         }
 
         /// <summary>
@@ -108,23 +90,12 @@ namespace PeakHeadTracking.Input
         ///   0: full head tracking (rotation + position)
         ///   1: rotation only (position disabled)
         ///   2: position only (rotation disabled)
-        /// Bound to the legacy TogglePositionKey (default Page Up) and Ctrl+Shift+G.
+        /// Bound to TogglePositionKey (default Page Up) and Ctrl+Shift+G.
         /// </summary>
-        private void HandleCycleTrackingMode()
+        private void CycleTrackingMode()
         {
-            bool isPressed = UnityEngine.Input.GetKey(config.TogglePositionKey.Value) || IsChordHeld(KeyCode.G);
+            trackingModeIndex = (trackingModeIndex + 1) % 3;
 
-            if (isPressed && !wasCyclePressed)
-            {
-                trackingModeIndex = (trackingModeIndex + 1) % 3;
-                ApplyTrackingMode();
-            }
-
-            wasCyclePressed = isPressed;
-        }
-
-        private void ApplyTrackingMode()
-        {
             bool rotation;
             bool position;
             string label;
@@ -156,32 +127,11 @@ namespace PeakHeadTracking.Input
         /// Toggle world-space (horizon-locked) vs camera-local yaw.
         /// Bound to YawModeKey (default Page Down) and Ctrl+Shift+H.
         /// </summary>
-        private void HandleToggleYawMode()
+        private void ToggleYawMode()
         {
-            bool isPressed = UnityEngine.Input.GetKey(config.YawModeKey.Value) || IsChordHeld(KeyCode.H);
-
-            if (isPressed && !wasYawModePressed)
-            {
-                bool newWorldSpace = !config.WorldSpaceYaw.Value;
-                config.WorldSpaceYaw.Value = newWorldSpace;
-                PeakHeadTrackingPlugin.Logger.LogInfo($"Yaw mode: {(newWorldSpace ? "world-space (horizon-locked)" : "camera-local")}");
-            }
-
-            wasYawModePressed = isPressed;
-        }
-
-        public void ResetStates()
-        {
-            wasTogglePressed = false;
-            wasRecenterPressed = false;
-            wasReloadPressed = false;
-            wasCyclePressed = false;
-            wasYawModePressed = false;
-        }
-
-        private void OnDisable()
-        {
-            ResetStates();
+            bool newWorldSpace = !config.WorldSpaceYaw.Value;
+            config.WorldSpaceYaw.Value = newWorldSpace;
+            PeakHeadTrackingPlugin.Logger.LogInfo($"Yaw mode: {(newWorldSpace ? "world-space (horizon-locked)" : "camera-local")}");
         }
     }
 }

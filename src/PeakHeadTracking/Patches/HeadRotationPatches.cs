@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using CameraUnlock.Core.Reflection;
 using HarmonyLib;
 using UnityEngine;
 
@@ -133,10 +134,10 @@ namespace PeakHeadTracking.Patches
             }
 
             // Compile expression delegates for fast field access
-            getCharacterFromAnimations = ReflectionUtils.CreateInstanceFieldGetter<object>(characterAnimationsType, characterField);
-            getLocalCharacter = ReflectionUtils.CreateStaticFieldGetter<object>(localCharacterField);
-            getRefsFromCharacter = ReflectionUtils.CreateInstanceFieldGetter<object>(characterType, refsField);
-            getAnimatorFromRefs = ReflectionUtils.CreateInstanceFieldGetter<Animator>(refsType, animatorField);
+            getCharacterFromAnimations = CompiledGetters.ForInstanceField(characterField);
+            getLocalCharacter = CompiledGetters.ForStaticField(localCharacterField);
+            getRefsFromCharacter = CompiledGetters.ForInstanceField(refsField);
+            getAnimatorFromRefs = CompiledGetters.ForInstanceField<Animator>(animatorField);
 
             PeakHeadTrackingPlugin.Logger?.LogInfo("[HeadRotation] Reflection initialized with compiled delegates");
         }
