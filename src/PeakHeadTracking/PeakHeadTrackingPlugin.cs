@@ -32,8 +32,6 @@ namespace PeakHeadTracking
         // Core components
         private GameObject trackingManagerObject;
         private Config.ModConfiguration modConfig;
-        private Config.ConfigurationManager configManager;
-        private Config.ProfileManager profileManager;
         private OpenTrackReceiver coreReceiver;
         private TrackingProcessor processor;
         private PoseInterpolator interpolator;
@@ -81,19 +79,10 @@ namespace PeakHeadTracking
         {
             Logger.LogDebug("Initializing configuration...");
 
-            // Initialize configuration manager singleton
-            configManager = PeakHeadTracking.Config.ConfigurationManager.Instance;
-            configManager.Initialize(base.Config);
+            modConfig = new Config.ModConfiguration();
+            modConfig.Initialize(base.Config);
 
-            // Get references to config components
-            modConfig = configManager.Config;
-            profileManager = configManager.Profiles;
-
-            // Subscribe to configuration change events
-            configManager.ProfileChanged += OnProfileChanged;
-
-            Logger.LogDebug($"Configuration loaded - Profile: {profileManager.GetActiveProfileName()}, " +
-                           $"UDP Port: {modConfig.UdpPort.Value}, " +
+            Logger.LogDebug($"Configuration loaded - UDP Port: {modConfig.UdpPort.Value}, " +
                            $"Tracking Enabled: {modConfig.TrackingEnabled.Value}");
         }
 
@@ -156,9 +145,9 @@ namespace PeakHeadTracking
                     modConfig.YawSensitivity.Value,
                     modConfig.PitchSensitivity.Value,
                     modConfig.RollSensitivity.Value,
-                    invertYaw: false,
-                    invertPitch: false,
-                    invertRoll: false
+                    invertYaw: modConfig.InvertYaw.Value,
+                    invertPitch: modConfig.InvertPitch.Value,
+                    invertRoll: modConfig.InvertRoll.Value
                 ),
                 Deadzone = modConfig.EnableDeadzone.Value
                     ? new DeadzoneSettings(
@@ -203,9 +192,6 @@ namespace PeakHeadTracking
             hotkeyManager = trackingManagerObject.AddComponent<Input.HotkeyManager>();
             hotkeyManager.Initialize(modConfig, cameraController, coreReceiver);
 
-            // Setup configuration callbacks
-            SetupConfigurationCallbacks();
-
             Logger.LogDebug("All components initialized");
         }
 
@@ -226,88 +212,6 @@ namespace PeakHeadTracking
             else
             {
                 Logger.LogInfo("Head tracking disabled by configuration");
-            }
-        }
-
-        /// <summary>
-        /// Setup configuration change callbacks
-        /// </summary>
-        private void SetupConfigurationCallbacks()
-        {
-            // Register callbacks for critical settings
-            configManager.RegisterSettingChangeCallback("UdpPort", () =>
-            {
-                Logger.LogInfo($"UDP Port changed to {modConfig.UdpPort.Value}, restarting receiver...");
-                coreReceiver?.Dispose();
-                coreReceiver?.Start(modConfig.UdpPort.Value);
-            });
-
-            configManager.RegisterSettingChangeCallback("TrackingEnabled", () =>
-            {
-                if (modConfig.TrackingEnabled.Value)
-                {
-                    if (!coreReceiver.IsReceiving && !coreReceiver.IsFailed)
-                    {
-                        coreReceiver.Start(modConfig.UdpPort.Value);
-                    }
-                    cameraController?.SetTrackingEnabled(true);
-                    Logger.LogInfo("Tracking enabled via configuration");
-                }
-                else
-                {
-                    coreReceiver?.Dispose();
-                    cameraController?.SetTrackingEnabled(false);
-                    Logger.LogInfo("Tracking disabled via configuration");
-                }
-            });
-
-            configManager.RegisterSettingChangeCallback("UpdateRate", () =>
-            {
-                Logger.LogDebug($"Update rate changed to {modConfig.UpdateRate.Value} Hz");
-            });
-
-            // Register reload config hotkey handler
-        }
-
-        /// <summary>
-        /// Handle profile change events
-        /// </summary>
-        private void OnProfileChanged(object sender, string profileName)
-        {
-            Logger.LogInfo($"Switched to profile: {profileName}");
-
-            // Restart receiver with new port if changed
-            if (coreReceiver != null)
-            {
-                coreReceiver.Dispose();
-                coreReceiver.Start(modConfig.UdpPort.Value);
-            }
-
-            // Update processor settings from new profile
-            processor.Sensitivity = new SensitivitySettings(
-                modConfig.YawSensitivity.Value,
-                modConfig.PitchSensitivity.Value,
-                modConfig.RollSensitivity.Value,
-                invertYaw: false,
-                invertPitch: false,
-                invertRoll: false
-            );
-            processor.SmoothingFactor = modConfig.Smoothing.Value;
-            processor.Deadzone = modConfig.EnableDeadzone.Value
-                ? new DeadzoneSettings(
-                    modConfig.DeadzoneYaw.Value,
-                    modConfig.DeadzonePitch.Value,
-                    modConfig.DeadzoneRoll.Value)
-                : DeadzoneSettings.None;
-
-            // Reinitialize components with new settings
-            cameraController?.Initialize(modConfig, coreReceiver, processor, interpolator);
-            hotkeyManager?.Initialize(modConfig, cameraController, coreReceiver);
-
-            // Re-enable tracking if it was enabled
-            if (modConfig.TrackingEnabled.Value)
-            {
-                cameraController?.SetTrackingEnabled(true);
             }
         }
 
@@ -352,15 +256,6 @@ namespace PeakHeadTracking
             // Clear receiver reference from CameraPatches
             Patches.CameraPatches.SetReceiver(null);
 
-            // Unsubscribe from events
-            if (configManager != null)
-            {
-                configManager.ProfileChanged -= OnProfileChanged;
-            }
-
-            // Clean up configuration
-            configManager?.Cleanup();
-            configManager = null;
             modConfig = null;
 
             Logger.LogInfo("Cleanup complete");
