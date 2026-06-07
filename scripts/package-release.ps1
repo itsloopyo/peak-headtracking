@@ -71,6 +71,28 @@ foreach ($script in @("install.cmd", "uninstall.cmd")) {
     Write-Host "  $script" -ForegroundColor Green
 }
 
+# Stamp launcher-manifest.json with the real release version and copy it
+# into the installer ZIP root. The launcher reads this file to decide how
+# to stage the mod (native manifest deployment, with install.cmd as the
+# legacy fallback).
+$manifestSource = Join-Path $projectDir "launcher-manifest.json"
+if (-not (Test-Path $manifestSource)) {
+    throw "launcher-manifest.json not found at repo root ($manifestSource)"
+}
+$manifestJson = Get-Content $manifestSource -Raw | ConvertFrom-Json
+$manifestJson.mod_info.version = $version
+$manifestDest = Join-Path $ghStagingDir "launcher-manifest.json"
+# Set-Content -Encoding UTF8 on Windows PowerShell 5.1 writes a BOM
+# (EF BB BF) which serde_json rejects with "expected value at line 1
+# column 1". Write through the .NET API with an explicit no-BOM encoder.
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText(
+    $manifestDest,
+    ($manifestJson | ConvertTo-Json -Depth 10),
+    $utf8NoBom
+)
+Write-Host "  launcher-manifest.json (v$version)" -ForegroundColor Green
+
 # Copy mod DLLs to plugins subfolder
 $pluginsDir = Join-Path $ghStagingDir "plugins"
 New-Item -ItemType Directory -Path $pluginsDir -Force | Out-Null
