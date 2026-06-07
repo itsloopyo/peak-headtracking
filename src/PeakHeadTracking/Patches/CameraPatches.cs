@@ -107,6 +107,12 @@ namespace PeakHeadTracking.Patches
         private static volatile float processedPitch = 0f;
         private static volatile float processedRoll = 0f;
 
+        // Position offset (view space, X=right Y=up Z=forward) the render applied to the view
+        // matrix this frame; published so CameraQuadPatches can mirror it onto the fog quad.
+        private static volatile float processedPosX = 0f;
+        private static volatile float processedPosY = 0f;
+        private static volatile float processedPosZ = 0f;
+
         // Callback state - now managed by RenderPipelineHelper
         private static bool callbackRegistered = false;
 
@@ -130,6 +136,22 @@ namespace PeakHeadTracking.Patches
         internal static float ProcessedYaw => processedYaw;
         internal static float ProcessedPitch => processedPitch;
         internal static float ProcessedRoll => processedRoll;
+
+        /// <summary>
+        /// The 6DOF position offset (view space: X=right, Y=up, Z=forward) the render applied
+        /// to the view matrix on the last frame, or zero when position tracking is inactive.
+        /// </summary>
+        internal static Vector3 ProcessedPositionOffset => new Vector3(processedPosX, processedPosY, processedPosZ);
+
+        /// <summary>
+        /// The near clip plane the render enforces for a given base value (it never lowers the
+        /// plane, only raises it to the configured minimum). Dependent passes such as the fog
+        /// quad must build against this same plane or they get clipped by the render.
+        /// </summary>
+        internal static float GetEffectiveNearClip(float baseNearClip)
+        {
+            return (nearClipConfig != null && baseNearClip < nearClipConfig.Value) ? nearClipConfig.Value : baseNearClip;
+        }
 
         /// <summary>
         /// Legacy method for compatibility - stores processed values for UI display
@@ -317,9 +339,19 @@ namespace PeakHeadTracking.Patches
                 var interpolatedPos = positionInterpolator.Update(rawPos, Time.deltaTime);
                 var headRotQ = QuaternionUtils.FromYawPitchRoll(yaw, -pitch, roll);
                 Vec3 posOffset = positionProcessor.Process(interpolatedPos, headRotQ, Time.deltaTime);
+                Vector3 posOffsetUnity = posOffset.ToUnity();
+                processedPosX = posOffsetUnity.x;
+                processedPosY = posOffsetUnity.y;
+                processedPosZ = posOffsetUnity.z;
                 // Translate in camera space: pre-multiply with translation matrix
-                cam.worldToCameraMatrix = Matrix4x4.Translate(-posOffset.ToUnity()) * cam.worldToCameraMatrix;
+                cam.worldToCameraMatrix = Matrix4x4.Translate(-posOffsetUnity) * cam.worldToCameraMatrix;
                 matrixModifiedThisFrame = true;
+            }
+            else
+            {
+                processedPosX = 0f;
+                processedPosY = 0f;
+                processedPosZ = 0f;
             }
 
             // Store and override near clip plane
