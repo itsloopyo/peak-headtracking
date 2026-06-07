@@ -22,7 +22,10 @@
 #>
 param(
     [Parameter(Position=0)]
-    [string]$Version = ""
+    [string]$Version = "",
+    # Ship a release even when there are no user-facing commits since the
+    # last tag (writes a maintenance changelog entry instead of aborting).
+    [switch]$Force
 )
 
 Set-StrictMode -Version Latest
@@ -33,6 +36,22 @@ $projectDir = Split-Path -Parent $scriptDir
 $csprojPath = Join-Path $projectDir "src\PeakHeadTracking\PeakHeadTracking.csproj"
 
 Import-Module (Join-Path $projectDir "cameraunlock-core\powershell\ReleaseWorkflow.psm1") -Force
+
+# Mirrors New-ChangelogFromCommits' insertion so a -Force maintenance entry
+# lands in the same place with the same shape.
+function Add-MaintenanceChangelogEntry {
+    param([string]$Path, [string]$NewVersion)
+    $date = Get-Date -Format 'yyyy-MM-dd'
+    $entry = "## [$NewVersion] - $date`n`n### Changed`n`n- Maintenance release (no user-facing changes).`n`n"
+    $changelog = Get-Content $Path -Raw
+    if ($changelog -match '(?s)(# Changelog.*?)(## \[)') {
+        $changelog = $changelog -replace '(?s)(# Changelog.*?\n\n)', "`$1$entry"
+    } else {
+        $changelog = $changelog -replace '(?s)(# Changelog.*?\n)', "`$1$entry"
+    }
+    $changelog = $changelog.TrimEnd() + "`n"
+    Set-Content $Path $changelog -NoNewline
+}
 
 Write-Host "=== Peak Head Tracking Release ===" -ForegroundColor Cyan
 Write-Host ""
@@ -87,47 +106,10 @@ Write-Host "Current version: $currentVersion" -ForegroundColor Gray
 Write-Host "New version:     $Version" -ForegroundColor Green
 Write-Host ""
 
-# Step 1: Update version in csproj
-Write-Host "Updating version to $Version..." -ForegroundColor Cyan
-Set-CsprojVersion $csprojPath $Version
-
-# Step 2: Update version in plugin source
-$pluginPath = Join-Path $projectDir "src\PeakHeadTracking\PeakHeadTrackingPlugin.cs"
-$pluginContent = Get-Content $pluginPath -Raw
-$pluginContent = $pluginContent -replace 'PLUGIN_VERSION = "[^"]+"', "PLUGIN_VERSION = `"$Version`""
-$pluginContent | Set-Content $pluginPath -NoNewline
-Write-Host "  Updated PeakHeadTrackingPlugin.cs" -ForegroundColor Gray
-
-# Step 2b: Update version in manifest.json (Thunderstore)
-$manifestPath = Join-Path $projectDir "manifest.json"
-$manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
-$manifest.version_number = $Version
-$manifest | ConvertTo-Json -Depth 10 | Set-Content $manifestPath -NoNewline
-Write-Host "  Updated manifest.json" -ForegroundColor Gray
-
-# Step 3: Build and update prebuilt DLLs
-Write-Host "Building release..." -ForegroundColor Cyan
-Push-Location $projectDir
-dotnet build src/PeakHeadTracking/PeakHeadTracking.csproj -c Release
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Build failed!" -ForegroundColor Red
-    Pop-Location
-    exit 1
-}
-
-$prebuiltDir = Join-Path $projectDir "prebuilt"
-if (-not (Test-Path $prebuiltDir)) {
-    New-Item -ItemType Directory -Path $prebuiltDir -Force | Out-Null
-}
-
-$buildOutput = "src/PeakHeadTracking/bin/Release/net472"
-Copy-Item "$buildOutput/PeakHeadTracking.dll" $prebuiltDir -Force
-Copy-Item "$buildOutput/CameraUnlock.Core.dll" $prebuiltDir -Force
-Copy-Item "$buildOutput/CameraUnlock.Core.Unity.dll" $prebuiltDir -Force
-Write-Host "  Updated prebuilt DLLs" -ForegroundColor Gray
-Pop-Location
-
-# Step 4: Generate CHANGELOG
+# Step 1: Generate CHANGELOG from commits since last tag. This is the gate
+# that aborts when there are no user-facing commits, so run it BEFORE
+# mutating any version files or building - a failure here then leaves a
+# clean tree instead of stranding a half-applied version bump with no tag.
 Write-Host "Generating CHANGELOG from commits..." -ForegroundColor Cyan
 $changelogPath = Join-Path $projectDir "CHANGELOG.md"
 $hasExistingTags = git tag -l 2>$null
@@ -157,15 +139,55 @@ if (-not $hasExistingTags) {
         }
         New-ChangelogFromCommits @changelogArgs
     } catch {
-        # No commits found (e.g. after squash) - write a basic entry
-        Write-Host "  No commits in range, writing manual changelog entry" -ForegroundColor Yellow
-        $date = Get-Date -Format 'yyyy-MM-dd'
-        $entry = "## [$Version] - $date`n`nRelease $Version.`n"
-        $existing = if (Test-Path $changelogPath) { Get-Content $changelogPath -Raw } else { "# Changelog`n`n" }
-        $existing = $existing -replace '(# Changelog\s*)', "`$1`n$entry`n"
-        Set-Content $changelogPath $existing
+        if (-not $Force) {
+            Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "No user-facing changes to release. Re-run with -Force for a maintenance release." -ForegroundColor Yellow
+            exit 1
+        }
+        Write-Host "No user-facing commits since last tag - writing maintenance entry (-Force)." -ForegroundColor Yellow
+        Add-MaintenanceChangelogEntry -Path $changelogPath -NewVersion $Version
     }
 }
+
+# Step 2: Update version in csproj
+Write-Host "Updating version to $Version..." -ForegroundColor Cyan
+Set-CsprojVersion $csprojPath $Version
+
+# Step 3: Update version in plugin source
+$pluginPath = Join-Path $projectDir "src\PeakHeadTracking\PeakHeadTrackingPlugin.cs"
+$pluginContent = Get-Content $pluginPath -Raw
+$pluginContent = $pluginContent -replace 'PLUGIN_VERSION = "[^"]+"', "PLUGIN_VERSION = `"$Version`""
+$pluginContent | Set-Content $pluginPath -NoNewline
+Write-Host "  Updated PeakHeadTrackingPlugin.cs" -ForegroundColor Gray
+
+# Step 3b: Update version in manifest.json (Thunderstore)
+$manifestPath = Join-Path $projectDir "manifest.json"
+$manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+$manifest.version_number = $Version
+$manifest | ConvertTo-Json -Depth 10 | Set-Content $manifestPath -NoNewline
+Write-Host "  Updated manifest.json" -ForegroundColor Gray
+
+# Step 4: Build and update prebuilt DLLs
+Write-Host "Building release..." -ForegroundColor Cyan
+Push-Location $projectDir
+dotnet build src/PeakHeadTracking/PeakHeadTracking.csproj -c Release
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Build failed!" -ForegroundColor Red
+    Pop-Location
+    exit 1
+}
+
+$prebuiltDir = Join-Path $projectDir "prebuilt"
+if (-not (Test-Path $prebuiltDir)) {
+    New-Item -ItemType Directory -Path $prebuiltDir -Force | Out-Null
+}
+
+$buildOutput = "src/PeakHeadTracking/bin/Release/net472"
+Copy-Item "$buildOutput/PeakHeadTracking.dll" $prebuiltDir -Force
+Copy-Item "$buildOutput/CameraUnlock.Core.dll" $prebuiltDir -Force
+Copy-Item "$buildOutput/CameraUnlock.Core.Unity.dll" $prebuiltDir -Force
+Write-Host "  Updated prebuilt DLLs" -ForegroundColor Gray
+Pop-Location
 
 # Step 5: Commit
 Write-Host "Committing changes..." -ForegroundColor Cyan
