@@ -185,7 +185,7 @@ namespace PeakHeadTracking.Config
             InvertRoll = config.Bind(
                 ConfigCategories.SENSITIVITY,
                 "Invert Roll",
-                false,
+                true,
                 "Invert roll (tilt) axis"
             );
 
