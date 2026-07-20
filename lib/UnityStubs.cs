@@ -572,7 +572,7 @@ namespace UnityEngine.SceneManagement {
         public static Scene GetActiveScene() => default;
         public static void LoadScene(string sceneName) { }
         public static void LoadScene(int sceneBuildIndex) { }
-        public static event System.Action<Scene, LoadSceneMode> sceneLoaded;
+        public static event UnityEngine.Events.UnityAction<Scene, LoadSceneMode> sceneLoaded;
     }
 }
 namespace UnityEngine.Events {
@@ -580,5 +580,6 @@ namespace UnityEngine.Events {
     public class UnityEvent<T0> { public void AddListener(UnityAction<T0> call) { } public void RemoveListener(UnityAction<T0> call) { } public void Invoke(T0 arg0) { } }
     public delegate void UnityAction();
     public delegate void UnityAction<T0>(T0 arg0);
+    public delegate void UnityAction<T0, T1>(T0 arg0, T1 arg1);
 }
 // UnityEngine.UI types are in a separate assembly — see UnityUIStubs.cs
