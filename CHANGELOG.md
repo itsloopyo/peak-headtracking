@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.2.0] - 2026-08-03
+
+### Fixed
+
+- show full control set in pixi install via shared -Controls
+- recenter from tracker app requests, not on data resume
+
+### Other
+
+- Link Discord, Lopari and Headcam from the README
+
 ## [1.1.2] - 2026-06-07
 
 ### Added
