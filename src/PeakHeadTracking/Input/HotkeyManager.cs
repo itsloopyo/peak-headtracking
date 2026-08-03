@@ -33,6 +33,12 @@ namespace PeakHeadTracking.Input
         {
             if (config == null) return;
 
+            if (coreReceiver.TryConsumeRecenterRequest())
+            {
+                cameraController.RecenterView();
+                PeakHeadTrackingPlugin.Logger.LogInfo("Recentered by tracker app");
+            }
+
             if (ChordHotkeys.IsActionPressed(config.ToggleTrackingKey.Value, ChordHotkeys.ToggleLetter))
             {
                 ToggleTracking();

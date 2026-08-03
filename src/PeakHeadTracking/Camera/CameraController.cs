@@ -39,7 +39,7 @@ namespace PeakHeadTracking.Camera
         // Tracking state
         private bool isTrackingActive = false;
         private bool isInitialized = false;
-        private bool wasReceiving = false;
+        private bool hasAutoRecentered = false;
 
         /// <summary>
         /// Initialize the camera controller
@@ -163,13 +163,16 @@ namespace PeakHeadTracking.Camera
             {
                 bool isReceiving = coreReceiver.IsReceiving;
 
-                // Auto-recenter when tracking data first arrives (or reconnects)
-                if (isReceiving && !wasReceiving)
+                // Auto-recenter once, when tracking data first arrives. Data
+                // resuming after a loss gap must not recenter — the user may not
+                // be facing the screen; the tracker app owns re-acquisition
+                // recentering and signals it via the packet trailer.
+                if (isReceiving && !hasAutoRecentered)
                 {
+                    hasAutoRecentered = true;
                     RecenterView();
                     PeakHeadTrackingPlugin.Logger.LogInfo("Auto-recentered: tracking data connected");
                 }
-                wasReceiving = isReceiving;
 
                 // Get raw pose from receiver
                 var rawPose = coreReceiver.GetLatestPose();
@@ -220,8 +223,9 @@ namespace PeakHeadTracking.Camera
 
             if (!enabled)
             {
-                // Reset so next enable triggers auto-recenter on connection
-                wasReceiving = false;
+                // Re-arm so the next enable triggers the auto-recenter
+                // (deliberate user toggle, not a data-resume trigger)
+                hasAutoRecentered = false;
 
                 // Clear head tracking input
                 Patches.CameraPatches.SetHeadTrackingInput(0, 0);
