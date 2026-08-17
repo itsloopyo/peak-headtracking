@@ -27,7 +27,7 @@ $packVersion = '5.4.75301'
 $out         = Join-Path $projectDir 'vendor/bepinex'
 $packUrl     = "https://thunderstore.io/package/download/BepInEx/BepInExPack_PEAK/$packVersion/"
 
-Refresh-VendoredLoader `
+Update-VendoredLoader `
     -Name 'bepinex' `
     -OutputDir $out `
     -OutputFileName 'BepInExPack_PEAK.zip' `
