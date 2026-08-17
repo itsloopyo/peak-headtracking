@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1] - 2026-08-18
+
+### Fixed
+
+- migrate to the per-connection smoothing pair
+- match stub member kinds to the shipped Unity assemblies
+
 ## [Unreleased]
 
 ### Changed
