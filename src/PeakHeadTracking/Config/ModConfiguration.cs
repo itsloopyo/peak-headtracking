@@ -38,7 +38,8 @@ namespace PeakHeadTracking.Config
         public ConfigEntry<float> MaxRoll { get; private set; }
 
         // Smoothing Settings
-        public ConfigEntry<float> Smoothing { get; private set; }
+        public ConfigEntry<float> LocalSmoothing { get; private set; }
+        public ConfigEntry<float> RemoteSmoothing { get; private set; }
 
         // Deadzone Settings
         public ConfigEntry<bool> EnableDeadzone { get; private set; }
@@ -70,7 +71,7 @@ namespace PeakHeadTracking.Config
         public ConfigEntry<float> PositionLimitX { get; private set; }
         public ConfigEntry<float> PositionLimitY { get; private set; }
         public ConfigEntry<float> PositionLimitZ { get; private set; }
-        public ConfigEntry<float> PositionSmoothing { get; private set; }
+        public ConfigEntry<float> PositionLimitZBack { get; private set; }
 
         // Camera Settings
         public ConfigEntry<float> NearClipOverride { get; private set; }
@@ -242,13 +243,28 @@ namespace PeakHeadTracking.Config
             );
 
             // Smoothing Settings
-            Smoothing = config.Bind(
+            LocalSmoothing = config.Bind(
                 ConfigCategories.SMOOTHING,
-                "Smoothing",
+                "Local Smoothing",
                 0.0f,
                 new ConfigDescription(
-                    "Smoothing factor (higher = smoother but adds latency). " +
-                    "Remote connections automatically use a minimum of 0.15 for network latency compensation.",
+                    "Smoothing applied when the tracker runs on this machine (loopback). " +
+                    "0 = no smoothing, 1 = heavy. Applies to positional tracking only. " +
+                    "Rotation is not affected: the rotation path skips the smoothing stage, " +
+                    "and rotation smoothness comes from PoseInterpolator instead.",
+                    new AcceptableValueRange<float>(0f, 1f)
+                )
+            );
+
+            RemoteSmoothing = config.Bind(
+                ConfigCategories.SMOOTHING,
+                "Remote Smoothing",
+                0.15f,
+                new ConfigDescription(
+                    "Smoothing applied when the tracker is a remote device on the network. " +
+                    "0 = no smoothing, 1 = heavy. Applies to positional tracking only. " +
+                    "Rotation is not affected: the rotation path skips the smoothing stage, " +
+                    "and rotation smoothness comes from PoseInterpolator instead.",
                     new AcceptableValueRange<float>(0f, 1f)
                 )
             );
@@ -414,14 +430,14 @@ namespace PeakHeadTracking.Config
                 ConfigCategories.SENSITIVITY,
                 "Position Limit Z",
                 0.40f,
-                new ConfigDescription("Maximum depth displacement in meters", new AcceptableValueRange<float>(0.01f, 0.5f))
+                new ConfigDescription("Maximum forward displacement in meters", new AcceptableValueRange<float>(0.01f, 0.5f))
             );
 
-            PositionSmoothing = config.Bind(
-                ConfigCategories.SMOOTHING,
-                "Position Smoothing",
-                0.15f,
-                new ConfigDescription("Smoothing for positional tracking (0 = instant, 1 = very slow)", new AcceptableValueRange<float>(0f, 1f))
+            PositionLimitZBack = config.Bind(
+                ConfigCategories.SENSITIVITY,
+                "Position Limit Z Back",
+                0.10f,
+                new ConfigDescription("Maximum backward displacement in meters. Leaning back is restricted more tightly than leaning forward to stop the camera pulling into the player body.", new AcceptableValueRange<float>(0.01f, 0.5f))
             );
 
             NearClipOverride = config.Bind(

@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Replace the single `Smoothing` config key with `Local Smoothing` (default 0.0) and `Remote Smoothing` (default 0.15), selected per connection from the packet source address. Both apply to positional tracking only; rotation is not smoothed by them, because the rotation path skips the smoothing stage and gets its smoothness from the PoseInterpolator
+- Remove the `Position Smoothing` key: position now uses the connection-selected `Local Smoothing` / `Remote Smoothing` value
+- Remove the hidden 0.15 baseline smoothing floor, so local trackers get zero-latency tracking by default
+
 ## [1.2.0] - 2026-08-03
 
 ### Fixed

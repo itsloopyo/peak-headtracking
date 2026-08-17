@@ -335,6 +335,12 @@ namespace PeakHeadTracking.Patches
                 {
                     cam.ResetWorldToCameraMatrix();
                 }
+
+                // Locality picks LocalSmoothing vs RemoteSmoothing. Re-read every frame
+                // so swapping a local tracker for a remote device switches parameter
+                // without restarting the game.
+                positionProcessor.IsRemoteConnection = receiver.IsRemoteConnection;
+
                 var rawPos = receiver.GetLatestPosition();
                 var interpolatedPos = positionInterpolator.Update(rawPos, Time.deltaTime);
                 var headRotQ = QuaternionUtils.FromYawPitchRoll(yaw, -pitch, roll);
