@@ -62,7 +62,7 @@ No special hardware needed — OpenTrack's built-in **neuralnet tracker** uses a
 
 ### Phone App Setup
 
-This mod includes built-in smoothing for network jitter, so you can send directly from your phone on port 4242 without needing OpenTrack on PC.
+This mod includes built-in smoothing for network jitter on positional tracking (`Remote Smoothing`, default 0.15), so you can send directly from your phone on port 4242 without needing OpenTrack on PC. Rotation is not smoothed by that setting; it is interpolated between tracker samples by the PoseInterpolator, which also absorbs uneven packet timing.
 
 1. Install an OpenTrack-compatible head tracking app
 2. Configure it to send to your PC's IP on port 4242 (run `ipconfig` to find it)
@@ -92,61 +92,116 @@ Two equivalent binding sets - use whichever your keyboard has:
 
 The mod creates a config file at `BepInEx/config/com.cameraunlock.peak.headtracking.cfg` on first run.
 
+The section headers are numbered (`[01. Connection]`, `[02. General]`, and so
+on) so they sort in a sensible order. The numbers are part of the section name:
+a setting written under `[Connection]` instead of `[01. Connection]` is in a
+section the mod never looks at, and it silently keeps its default.
+
+A comment has to sit on its own line. BepInEx splits each line at the first `=`
+and takes everything after it as the value, so a trailing `# note` becomes part
+of the value, the conversion fails, and the entry silently keeps its default -
+the only trace is a line in `BepInEx/LogOutput.log`. Put explanations above the
+key, never after it.
+
 ```ini
-[Connection]
-UDP Port = 4242                  # Must match OpenTrack output port (1024-65535)
-Reconnect Timeout = 5            # Seconds before reconnection attempt (1-60)
-Packet Buffer Size = 100         # Max packets to buffer (10-500)
+[01. Connection]
+# Must match OpenTrack output port (1024-65535)
+UDP Port = 4242
+# Seconds before reconnection attempt (1-60)
+Reconnect Timeout = 5
+# Max packets to buffer (10-500)
+Packet Buffer Size = 100
 
-[General]
-Tracking Enabled = true          # Start with tracking enabled
-Position Enabled = true          # Enable lean/positional tracking (6DOF)
-Enable Audio Feedback = true     # Play sounds for tracking state changes
-World Space Yaw = true           # true = horizon-locked yaw (default), false = camera-local yaw
+[02. General]
+# Start with tracking enabled
+Tracking Enabled = true
+# Enable lean/positional tracking (6DOF)
+Position Enabled = true
+# Play sounds for tracking state changes
+Enable Audio Feedback = true
+# Move the crosshair to the real aim point while head tracking is active
+Show Reticle = true
+# true = horizon-locked yaw (default), false = camera-local yaw
+World Space Yaw = true
 
-[Sensitivity]
-Yaw Sensitivity = 1.0            # Horizontal rotation (0.1-5.0)
-Pitch Sensitivity = 1.0          # Vertical rotation (0.1-5.0)
-Roll Sensitivity = 1.0           # Head tilt (0.1-5.0)
+[03. Sensitivity]
+# Horizontal rotation (0.1-5.0)
+Yaw Sensitivity = 1.0
+# Vertical rotation (0.1-5.0)
+Pitch Sensitivity = 1.0
+# Head tilt (0.1-5.0)
+Roll Sensitivity = 1.0
 Invert Yaw = false
 Invert Pitch = false
-Invert Roll = false
-Position Sensitivity X = 2.0    # Lateral sensitivity (0.0-5.0)
-Position Sensitivity Y = 2.0    # Vertical sensitivity (0.0-5.0)
-Position Sensitivity Z = 2.0    # Depth sensitivity (0.0-5.0)
-Position Limit X = 0.30         # Max lateral offset in meters (0.01-0.5)
-Position Limit Y = 0.20         # Max vertical offset in meters (0.01-0.5)
-Position Limit Z = 0.40         # Max depth offset in meters (0.01-0.5)
+Invert Roll = true
+# Lateral sensitivity (0.0-5.0)
+Position Sensitivity X = 2.0
+# Vertical sensitivity (0.0-5.0)
+Position Sensitivity Y = 2.0
+# Depth sensitivity (0.0-5.0)
+Position Sensitivity Z = 2.0
+# Max lateral offset in meters (0.01-0.5)
+Position Limit X = 0.30
+# Max vertical offset in meters (0.01-0.5)
+Position Limit Y = 0.20
+# Max forward offset in meters (0.01-0.5)
+Position Limit Z = 0.40
+# Max backward offset in meters (0.01-0.5)
+Position Limit Z Back = 0.10
 
-[Limits]
-Enable Pitch Limits = true       # Clamp pitch rotation
-Minimum Pitch = -85              # Max look-down angle (-90 to 0)
-Maximum Pitch = 85               # Max look-up angle (0 to 90)
-Enable Roll = true               # Enable head tilt
-Enable Roll Limits = true        # Clamp roll rotation
-Maximum Roll = 30                # Max tilt angle (0-90)
+[04. Rotation Limits]
+# Clamp pitch rotation
+Enable Pitch Limits = true
+# Max look-down angle (-90 to 0)
+Minimum Pitch = -85
+# Max look-up angle (0 to 90)
+Maximum Pitch = 85
+# Enable head tilt
+Enable Roll = true
+# Clamp roll rotation
+Enable Roll Limits = true
+# Max tilt angle (0-90)
+Maximum Roll = 30
 
-[Smoothing]
-Smoothing = 0.0                  # 0 = responsive, 1 = heavy (adds latency)
-Position Smoothing = 0.15        # Position smoothing (0.0-1.0)
+[05. Smoothing]
+# Both values apply to positional tracking only. Rotation is not smoothed by them:
+# the rotation path skips the smoothing stage and relies on the PoseInterpolator,
+# which interpolates between tracker samples to fill in frames.
+# Tracker on this machine (loopback), 0 = none, 1 = heavy
+Local Smoothing = 0.0
+# Tracker on a remote network device, 0 = none, 1 = heavy
+Remote Smoothing = 0.15
 
-[Deadzone]
-Enable Deadzone = false          # Ignore small movements near center
-Yaw Deadzone = 0                 # Yaw deadzone in degrees (0-10)
-Pitch Deadzone = 0               # Pitch deadzone in degrees (0-10)
-Roll Deadzone = 0                # Roll deadzone in degrees (0-10)
+[06. Deadzone]
+# Ignore small movements near center
+Enable Deadzone = false
+# Yaw deadzone in degrees (0-10)
+Yaw Deadzone = 0
+# Pitch deadzone in degrees (0-10)
+Pitch Deadzone = 0
+# Roll deadzone in degrees (0-10)
+Roll Deadzone = 0
 
-[Hotkeys]
+[07. Hotkeys]
 Toggle Tracking = End
 Recenter View = Home
 Toggle Position = PageUp
 Yaw Mode Key = PageDown
+# Re-read the config file and restart the UDP listener. Only UDP Port takes
+# effect this way; sensitivity, limits, deadzones and smoothing are read once at
+# startup and need a game restart
+Reload Config = F12
+# Present in the file but not wired up in this version; changing it does nothing
+Toggle Reticle = Insert
 
-[Advanced]
-Debug Logging = false            # Enable detailed debug logging
-Update Rate = 60                 # Target update rate in Hz (30-120)
+[08. Advanced]
+# Enable detailed debug logging
+Debug Logging = false
+# Target update rate in Hz (30-120)
+Update Rate = 60
 Maintain Relative Position = true
-Near Clip Override = 0.15        # Prevents seeing through player model during head bob (0.01-0.5)
+# Prevents seeing through player model during head bob (0.01-0.5)
+Near Clip Override = 0.15
 ```
 
 ## Troubleshooting
@@ -166,9 +221,12 @@ Near Clip Override = 0.15        # Prevents seeing through player model during h
 - Press **End** to enable tracking, **Home** to recenter
 - Check firewall isn't blocking UDP port 4242
 
+**A config edit had no effect:**
+- Make sure nothing follows the value on the line. A trailing `# comment` is read as part of the value, the entry falls back to its default, and the game gives no sign of it. `BepInEx/LogOutput.log` records the failed conversion.
+
 **Jittery movement:**
-- Increase `Smoothing` in the config file (remote connections auto-use 0.15 minimum)
-- Enable deadzones in the `[Deadzone]` section
+- For jittery leaning (positional tracking), increase `Remote Smoothing` for a phone or other network device, or `Local Smoothing` for a tracker running on this PC, with nothing after the value on the line. These two values do not affect rotation jitter
+- Enable deadzones in the `[06. Deadzone]` section
 - Improve lighting for webcam-based tracking
 
 **Yaw feels wrong when looking up or down at extreme angles:**
