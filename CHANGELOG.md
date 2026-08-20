@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.0] - 2026-08-20
+
+### Added
+
+- drop mod-side centring, the tracker app owns the centre
+
+### Fixed
+
+- harden the release catalog pin sync and tag interpolation
+
 ## [1.2.1] - 2026-08-18
 
 ### Fixed
