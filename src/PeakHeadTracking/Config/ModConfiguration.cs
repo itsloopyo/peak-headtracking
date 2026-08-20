@@ -49,7 +49,6 @@ namespace PeakHeadTracking.Config
 
         // Hotkey Settings
         public ConfigEntry<KeyCode> ToggleTrackingKey { get; private set; }
-        public ConfigEntry<KeyCode> RecenterKey { get; private set; }
         public ConfigEntry<KeyCode> ReloadConfigKey { get; private set; }
         public ConfigEntry<KeyCode> TogglePositionKey { get; private set; }
         public ConfigEntry<KeyCode> ToggleReticleKey { get; private set; }
@@ -313,13 +312,6 @@ namespace PeakHeadTracking.Config
                 "Toggle Tracking",
                 KeyCode.End,
                 "Key to enable/disable tracking"
-            );
-
-            RecenterKey = config.Bind(
-                ConfigCategories.HOTKEYS,
-                "Recenter View",
-                KeyCode.Home,
-                "Key to recenter the view"
             );
 
             ReloadConfigKey = config.Bind(

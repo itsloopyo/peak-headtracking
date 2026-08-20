@@ -9,8 +9,21 @@
 
 ## [Unreleased]
 
+### Added
+
+- Log the UDP port at startup and a one-shot `Tracker data received` line the
+  first time packets arrive, so a "no head tracking" report is answerable from
+  `BepInEx/LogOutput.log` alone. The port previously went out at debug level,
+  which BepInEx does not write to disk by default.
+
 ### Changed
 
+- The mod no longer keeps a centre at all. Every tracker centres itself, so a
+  mod-side centre was a second centre in series with the tracker's own and the
+  two drifted apart. Centre in your tracker app instead (opentrack's Center
+  bind, the CENTER button in Headcam, SteamVR's reset); the mod applies the pose
+  it receives as absolute. The `Home` key, the `Ctrl+Shift+T` chord and the
+  `Recenter View` config entry are gone.
 - Replace the single `Smoothing` config key with `Local Smoothing` (default 0.0) and `Remote Smoothing` (default 0.15), selected per connection from the packet source address. Both apply to positional tracking only; rotation is not smoothed by them, because the rotation path skips the smoothing stage and gets its smoothness from the PoseInterpolator
 - Remove the `Position Smoothing` key: position now uses the connection-selected `Local Smoothing` / `Remote Smoothing` value
 - Remove the hidden 0.15 baseline smoothing floor, so local trackers get zero-latency tracking by default

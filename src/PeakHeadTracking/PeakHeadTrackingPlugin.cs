@@ -209,7 +209,7 @@ namespace PeakHeadTracking
             {
                 coreReceiver.Start(modConfig.UdpPort.Value);
                 cameraController.SetTrackingEnabled(true);
-                Logger.LogInfo("Head tracking started");
+                Logger.LogInfo($"Head tracking started, listening on UDP port {modConfig.UdpPort.Value}");
             }
             else
             {
@@ -232,12 +232,12 @@ namespace PeakHeadTracking
             // Unregister camera render callbacks first to stop rendering pipeline
             Patches.CameraPatches.UnregisterCameraCallback();
 
-            // Remove Harmony patches before disposing anything —
+            // Remove Harmony patches before disposing anything -
             // prevents patched game methods from calling into our code during teardown
             harmony?.UnpatchSelf();
             harmony = null;
 
-            // Destroy the tracking manager GameObject — this stops CameraController.LateUpdate()
+            // Destroy the tracking manager GameObject - this stops CameraController.LateUpdate()
             // and HotkeyManager.Update() from running on disposed references.
             // Use DestroyImmediate during application quit (Destroy is deferred and won't
             // execute during quit, leaving the object alive with running Update loops).
@@ -247,7 +247,7 @@ namespace PeakHeadTracking
                 trackingManagerObject = null;
             }
 
-            // Stop UDP receiver — close socket first to unblock the receive thread,
+            // Stop UDP receiver - close socket first to unblock the receive thread,
             // then Dispose() joins the thread (which exits immediately once socket is closed)
             if (coreReceiver != null)
             {

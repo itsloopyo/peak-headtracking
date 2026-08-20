@@ -84,16 +84,6 @@ namespace PeakHeadTracking.Patches
             worldSpaceYawConfig = config;
         }
 
-        /// <summary>
-        /// Recenter position tracking to current head position.
-        /// </summary>
-        public static void RecenterPosition()
-        {
-            if (positionProcessor == null || receiver == null) return;
-            positionProcessor.SetCenter(receiver.GetLatestPosition());
-            positionInterpolator?.Reset();
-        }
-
         // Processed values after the full pipeline (for compatibility)
         private static float currentYaw = 0f;
         private static float currentPitch = 0f;
@@ -256,7 +246,7 @@ namespace PeakHeadTracking.Patches
 
         /// <summary>
         /// Pre-render callback: apply head tracking via view matrix modification.
-        /// The camera transform is NEVER modified — only worldToCameraMatrix changes.
+        /// The camera transform is NEVER modified - only worldToCameraMatrix changes.
         /// </summary>
         private static void OnPreRender(UnityEngine.Camera cam)
         {
@@ -367,7 +357,7 @@ namespace PeakHeadTracking.Patches
                 cam.nearClipPlane = nearClipConfig.Value;
             }
 
-            // Update reticle position — cam.transform.forward IS the game's aim direction
+            // Update reticle position - cam.transform.forward IS the game's aim direction
             // because view matrix modification doesn't touch the transform
             if (showReticleConfig != null && showReticleConfig.Value && ReticleCompensation.CanUpdateReticle())
             {

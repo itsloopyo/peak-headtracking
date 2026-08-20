@@ -39,7 +39,7 @@ namespace PeakHeadTracking.Camera
         // Tracking state
         private bool isTrackingActive = false;
         private bool isInitialized = false;
-        private bool hasAutoRecentered = false;
+        private bool hasLoggedFirstPacket = false;
 
         /// <summary>
         /// Initialize the camera controller
@@ -159,33 +159,29 @@ namespace PeakHeadTracking.Camera
         /// </summary>
         private void LateUpdate()
         {
+            // Latched once: the only line in the log that proves tracker packets
+            // reached the game. Outside the isTrackingActive gate so a user who
+            // started with tracking toggled off can still see the tracker arrive.
+            if (coreReceiver != null && !hasLoggedFirstPacket && coreReceiver.IsReceiving)
+            {
+                hasLoggedFirstPacket = true;
+                PeakHeadTrackingPlugin.Logger.LogInfo(
+                    $"Tracker data received ({(coreReceiver.IsRemoteConnection ? "remote" : "local")} source)");
+            }
+
             if (coreReceiver != null && isTrackingActive)
             {
-                bool isReceiving = coreReceiver.IsReceiving;
-
-                // Auto-recenter once, when tracking data first arrives. Data
-                // resuming after a loss gap must not recenter — the user may not
-                // be facing the screen; the tracker app owns re-acquisition
-                // recentering and signals it via the packet trailer.
-                if (isReceiving && !hasAutoRecentered)
-                {
-                    hasAutoRecentered = true;
-                    RecenterView();
-                    PeakHeadTrackingPlugin.Logger.LogInfo("Auto-recentered: tracking data connected");
-                }
-
                 // Get raw pose from receiver
                 var rawPose = coreReceiver.GetLatestPose();
 
                 // Run through interpolation (fills 60Hz→240Hz gaps with linear lerp)
                 var interpolated = interpolator.Update(rawPose, Time.deltaTime);
 
-                // Apply centering, deadzone, sensitivity — but NOT exponential smoothing.
+                // Apply deadzone and sensitivity - but NOT exponential smoothing.
                 // PoseInterpolator already produces smooth output at any frame rate;
                 // adding exponential smoothing on top would double-smooth and add ~60-75ms latency.
                 Quat4 rawQ = QuaternionUtils.FromYawPitchRoll(interpolated.Yaw, interpolated.Pitch, interpolated.Roll);
-                Quat4 centeredQ = processor.CenterManager.ApplyOffsetQuat(rawQ);
-                QuaternionUtils.ToEulerYXZ(centeredQ, out float yaw, out float pitch, out float roll);
+                QuaternionUtils.ToEulerYXZ(rawQ, out float yaw, out float pitch, out float roll);
 
                 yaw = (float)DeadzoneUtils.Apply(yaw, processor.Deadzone.Yaw);
                 pitch = (float)DeadzoneUtils.Apply(pitch, processor.Deadzone.Pitch);
@@ -223,10 +219,6 @@ namespace PeakHeadTracking.Camera
 
             if (!enabled)
             {
-                // Re-arm so the next enable triggers the auto-recenter
-                // (deliberate user toggle, not a data-resume trigger)
-                hasAutoRecentered = false;
-
                 // Clear head tracking input
                 Patches.CameraPatches.SetHeadTrackingInput(0, 0);
 
@@ -241,25 +233,9 @@ namespace PeakHeadTracking.Camera
                 // Reset processing pipeline for clean start
                 processor.ResetSmoothing();
                 interpolator.Reset();
-
-                // Recenter to current head position
-                var rawPose = coreReceiver.GetLatestPose();
-                processor.RecenterTo(rawPose);
             }
 
             PeakHeadTrackingPlugin.Logger.LogInfo($"Tracking {(enabled ? "enabled" : "disabled")}");
-        }
-
-        /// <summary>
-        /// Recenter the view (set current rotation as center)
-        /// </summary>
-        public void RecenterView()
-        {
-            var rawPose = coreReceiver.GetLatestPose();
-            processor.RecenterTo(rawPose);
-            interpolator.Reset();
-            Patches.CameraPatches.RecenterPosition();
-            PeakHeadTrackingPlugin.Logger.LogInfo("View recentered");
         }
 
         /// <summary>

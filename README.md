@@ -33,9 +33,9 @@ If you prefer to install manually or the installer doesn't work for you:
 
 1. Install [BepInExPack_PEAK](https://thunderstore.io/c/peak/p/BepInEx/BepInExPack_PEAK/) into your game folder:
    - Download and extract the archive
-   - Copy the contents of the `BepInExPack_PEAK` folder to your game root (where `Peak.exe` lives) — this includes `winhttp.dll`, `doorstop_config.ini`, and the `BepInEx` folder
+   - Copy the contents of the `BepInExPack_PEAK` folder to your game root (where `Peak.exe` lives) - this includes `winhttp.dll`, `doorstop_config.ini`, and the `BepInEx` folder
 2. Download the **Nexus** release ZIP (the one ending in `-nexus.zip`)
-3. Extract it into your game folder — the DLLs will land in `BepInEx/plugins/`:
+3. Extract it into your game folder - the DLLs will land in `BepInEx/plugins/`:
    - `PeakHeadTracking.dll`
    - `CameraUnlock.Core.dll`
    - `CameraUnlock.Core.Unity.dll`
@@ -52,13 +52,13 @@ If you prefer to install manually or the installer doesn't work for you:
 
 ### Webcam Setup
 
-No special hardware needed — OpenTrack's built-in **neuralnet tracker** uses any webcam for 6DOF face tracking.
+No special hardware needed - OpenTrack's built-in **neuralnet tracker** uses any webcam for 6DOF face tracking.
 
 1. In OpenTrack, set the input to **neuralnet tracker**
 2. Select your webcam in the tracker settings
 3. Set output to **UDP over network** (`127.0.0.1:4242`)
 4. Start tracking before launching the game
-5. Recenter in OpenTrack via its hotkey, and press **Home** in-game to recenter the mod as needed
+5. Centre with OpenTrack's own Center hotkey whenever you need to; the mod applies whatever pose OpenTrack sends
 
 ### Phone App Setup
 
@@ -76,10 +76,13 @@ Two equivalent binding sets - use whichever your keyboard has:
 
 | Action              | Nav-cluster | Chord           |
 |---------------------|-------------|-----------------|
-| Recenter            | `Home`      | `Ctrl+Shift+T`  |
 | Toggle tracking     | `End`       | `Ctrl+Shift+Y`  |
 | Cycle tracking mode | `Page Up`   | `Ctrl+Shift+G`  |
 | Toggle yaw mode     | `Page Down` | `Ctrl+Shift+H`  |
+
+There is no recentre key. Your tracker app owns the centre: use its own
+control (opentrack's Center bind, the CENTER button in Headcam, SteamVR's
+reset) and the mod applies whatever pose it receives.
 
 `Page Up` / `Ctrl+Shift+G` cycles tracking mode:
 
@@ -184,7 +187,6 @@ Roll Deadzone = 0
 
 [07. Hotkeys]
 Toggle Tracking = End
-Recenter View = Home
 Toggle Position = PageUp
 Yaw Mode Key = PageDown
 # Re-read the config file and restart the UDP listener. Only UDP Port takes
@@ -218,7 +220,8 @@ Near Clip Override = 0.15
 **No tracking response:**
 - Verify OpenTrack is running and outputting data
 - Check UDP port matches (default 4242)
-- Press **End** to enable tracking, **Home** to recenter
+- Press **End** to enable tracking
+- If the view sits off to one side, centre it in your tracker app. The mod keeps no centre of its own
 - Check firewall isn't blocking UDP port 4242
 
 **A config edit had no effect:**
