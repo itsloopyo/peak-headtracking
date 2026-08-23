@@ -44,55 +44,6 @@ if ($LASTEXITCODE -eq 0 -and $tagExists) {
 }
 Write-Host "✅ Tag v$version does not yet exist" -ForegroundColor Green
 
-# Check 5: Verify prebuilt DLLs exist
-$prebuiltDir = "prebuilt"
-$requiredDlls = @(
-    "PeakHeadTracking.dll",
-    "CameraUnlock.Core.dll",
-    "CameraUnlock.Core.Unity.dll"
-)
-
-$missingDlls = @()
-foreach ($dll in $requiredDlls) {
-    $dllPath = Join-Path $prebuiltDir $dll
-    if (-not (Test-Path $dllPath)) {
-        $missingDlls += $dll
-    }
-}
-
-if ($missingDlls.Count -gt 0) {
-    Write-Host "❌ FAIL: Missing prebuilt DLLs: $($missingDlls -join ', ')" -ForegroundColor Red
-    Write-Host "Run 'pixi run update-prebuilt' and commit the results" -ForegroundColor Yellow
-    exit 1
-}
-Write-Host "✅ Prebuilt DLLs present" -ForegroundColor Green
-
-# Check 6: Verify prebuilt DLLs match build output (if build exists)
-$buildOutput = "src/PeakHeadTracking/bin/Release/net472"
-if (Test-Path $buildOutput) {
-    $stale = @()
-    foreach ($dll in $requiredDlls) {
-        $prebuiltPath = Join-Path $prebuiltDir $dll
-        $buildPath = Join-Path $buildOutput $dll
-        if (Test-Path $buildPath) {
-            $prebuiltHash = (Get-FileHash $prebuiltPath -Algorithm SHA256).Hash
-            $buildHash = (Get-FileHash $buildPath -Algorithm SHA256).Hash
-            if ($prebuiltHash -ne $buildHash) {
-                $stale += $dll
-            }
-        }
-    }
-
-    if ($stale.Count -gt 0) {
-        Write-Host "❌ FAIL: Prebuilt DLLs are stale: $($stale -join ', ')" -ForegroundColor Red
-        Write-Host "Run 'pixi run update-prebuilt' and commit the results" -ForegroundColor Yellow
-        exit 1
-    }
-    Write-Host "✅ Prebuilt DLLs match build output" -ForegroundColor Green
-} else {
-    Write-Host "⚠️  Build output not found, skipping staleness check" -ForegroundColor Yellow
-}
-
 Write-Host ""
 Write-Host "🎉 All validation checks passed!" -ForegroundColor Green
 Write-Host ""

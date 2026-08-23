@@ -209,7 +209,7 @@ Near Clip Override = 0.15
 ## Troubleshooting
 
 **Game crashes on startup after installing BepInEx:**
-- PEAK requires the [BepInExPack_PEAK](https://thunderstore.io/c/peak/p/BepInEx/BepInExPack_PEAK/) build (ships with a PEAK-specific doorstop). Our `install.cmd` downloads this automatically.
+- PEAK requires the [BepInExPack_PEAK](https://thunderstore.io/c/peak/p/BepInEx/BepInExPack_PEAK/) build (ships with a PEAK-specific doorstop). A copy is bundled inside the release ZIP and `install.cmd` extracts it from there, so the installer never reaches out to the network.
 - If the game crashes on startup, add `-force-vulkan` to your Steam launch options (game Properties > General > Launch Options) to bypass DX12
 
 **Mod not loading:**
@@ -293,12 +293,18 @@ pixi run package
 
 MIT License - see [LICENSE](LICENSE) for details.
 
+The MIT licence covers the code in this repository. It does not cover the
+bundled third-party components, or the PEAK gameplay footage in `assets/` (the
+clip at the top of this page and the package icon), which belongs to the game's
+developers and publishers. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)
+for the full breakdown.
+
 ## Credits
 
 - [Aggro Crab](https://aggrocrab.com/) / [Landfall](https://landfall.se/) - PEAK
 - [BepInEx](https://github.com/BepInEx/BepInEx) - Unity modding framework
 - [OpenTrack](https://github.com/opentrack/opentrack) - Head tracking software
-- [Harmony](https://github.com/pardeike/Harmony) - Runtime patching library
+- [HarmonyX](https://github.com/BepInEx/HarmonyX) - Runtime patching library, the BepInEx fork of Andreas Pardeike's [Harmony](https://github.com/pardeike/Harmony)
 
 ## Disclaimer
 

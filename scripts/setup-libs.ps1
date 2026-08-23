@@ -1,6 +1,6 @@
 #!/usr/bin/env pwsh
 # Setup build dependencies using Unity stub assemblies.
-# This matches the CI build exactly — no game installation required.
+# This matches the CI build exactly - no game installation required.
 # Pass -UseGameDlls to copy real DLLs from a local Peak install instead.
 
 param(

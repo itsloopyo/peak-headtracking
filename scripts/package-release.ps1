@@ -105,29 +105,31 @@ foreach ($dll in $modDlls) {
 # Bundle vendored BepInEx (LGPL-2.1, see THIRD-PARTY-NOTICES.md) as install-time source.
 $ghVendorDir = Join-Path $ghStagingDir "vendor\bepinex"
 New-Item -ItemType Directory -Path $ghVendorDir -Force | Out-Null
+# The LGPL-2.1 licence has to travel with the binary we redistribute, so a
+# missing LICENSE is a compliance failure, not something to skip quietly.
 foreach ($vendorFile in @("BepInExPack_PEAK.zip", "LICENSE", "README.md")) {
     $src = Join-Path $vendorBepDir $vendorFile
-    if (Test-Path $src) {
-        Copy-Item $src -Destination $ghVendorDir -Force
-        Write-Host "  vendor/bepinex/$vendorFile" -ForegroundColor Green
-    } elseif ($vendorFile -eq "BepInExPack_PEAK.zip") {
+    if (-not (Test-Path $src)) {
         throw "Required vendor file missing: $src. Run 'pixi run update-deps' to refresh."
     }
+    Copy-Item $src -Destination $ghVendorDir -Force
+    Write-Host "  vendor/bepinex/$vendorFile" -ForegroundColor Green
 }
 
 # Bundle the shared detection bundle for install.cmd's shim.
 Copy-SharedBundle -StagingDir $ghStagingDir -CoreRoot (Join-Path $projectDir 'cameraunlock-core')
 
-# Copy documentation
+# Copy documentation. LICENSE and THIRD-PARTY-NOTICES.md carry the notices that
+# every licence here requires to accompany the binaries, so a missing one fails
+# the build rather than shipping a ZIP without them.
 $docFiles = @("README.md", "LICENSE", "CHANGELOG.md", "THIRD-PARTY-NOTICES.md")
 foreach ($doc in $docFiles) {
     $docPath = Join-Path $projectDir $doc
-    if (Test-Path $docPath) {
-        Copy-Item $docPath -Destination $ghStagingDir -Force
-        Write-Host "  $doc" -ForegroundColor Green
-    } elseif ($doc -eq "LICENSE") {
-        Write-Host "  WARNING: $doc not found" -ForegroundColor Yellow
+    if (-not (Test-Path $docPath)) {
+        throw "Required document not found: $doc. Every published ZIP is a binary distribution and must carry it."
     }
+    Copy-Item $docPath -Destination $ghStagingDir -Force
+    Write-Host "  $doc" -ForegroundColor Green
 }
 
 $ghZipName = "PeakHeadTracking-v$version-installer.zip"
@@ -175,6 +177,17 @@ if (Test-Path $nexusZipPath) { Remove-Item $nexusZipPath -Force }
 Write-Host ""
 Write-Host "Creating Nexus ZIP..." -ForegroundColor Cyan
 
+# The Nexus ZIP is a binary distribution too: the licences of everything
+# compiled into or bundled with the payload require their notices to travel
+# with it, so LICENSE and THIRD-PARTY-NOTICES.md ship at its root.
+foreach ($noticeDoc in @('LICENSE', 'THIRD-PARTY-NOTICES.md', 'README.md')) {
+    $noticeSrc = Join-Path $projectDir $noticeDoc
+    if (-not (Test-Path $noticeSrc)) {
+        throw "Required notice file not found: $noticeDoc. Every published ZIP is a binary distribution and must carry it."
+    }
+    Copy-Item $noticeSrc -Destination $nexusStagingDir -Force
+    Write-Host "  $noticeDoc" -ForegroundColor Green
+}
 Push-Location $nexusStagingDir
 try {
     Compress-Archive -Path ".\*" -DestinationPath $nexusZipPath -Force
@@ -196,7 +209,7 @@ $tsStagingDir = Join-Path $releaseDir "staging-thunderstore"
 if (Test-Path $tsStagingDir) { Remove-Item -Recurse -Force $tsStagingDir }
 New-Item -ItemType Directory -Path $tsStagingDir -Force | Out-Null
 
-# manifest.json — update version from csproj
+# manifest.json - update version from csproj
 $manifestPath = Join-Path $projectDir "manifest.json"
 if (-not (Test-Path $manifestPath)) {
     throw "manifest.json not found at project root"
@@ -206,31 +219,26 @@ $manifest.version_number = $version
 $manifest | ConvertTo-Json -Depth 10 | Out-File (Join-Path $tsStagingDir "manifest.json") -Encoding utf8
 Write-Host "  manifest.json (v$version)" -ForegroundColor Green
 
-# icon.png — required 256x256
+# icon.png - Thunderstore requires a 256x256 package icon. It is PEAK gameplay
+# footage; see the "PEAK footage and screenshots" section of THIRD-PARTY-NOTICES.md,
+# which is why that file has to ship in this ZIP too.
 $iconPath = Join-Path $projectDir "assets\icon.png"
-if (Test-Path $iconPath) {
-    Copy-Item $iconPath -Destination $tsStagingDir -Force
-    Write-Host "  icon.png" -ForegroundColor Green
-} else {
-    Write-Host "  WARNING: assets/icon.png not found - Thunderstore requires a 256x256 icon" -ForegroundColor Yellow
+if (-not (Test-Path $iconPath)) {
+    throw "assets/icon.png not found. Thunderstore requires a 256x256 package icon."
 }
+Copy-Item $iconPath -Destination $tsStagingDir -Force
+Write-Host "  icon.png" -ForegroundColor Green
 
-# README.md
-Copy-Item (Join-Path $projectDir "README.md") -Destination $tsStagingDir -Force
-Write-Host "  README.md" -ForegroundColor Green
-
-# LICENSE
-$licensePath = Join-Path $projectDir "LICENSE"
-if (Test-Path $licensePath) {
-    Copy-Item $licensePath -Destination $tsStagingDir -Force
-    Write-Host "  LICENSE" -ForegroundColor Green
-}
-
-# CHANGELOG.md
-$changelogPath = Join-Path $projectDir "CHANGELOG.md"
-if (Test-Path $changelogPath) {
-    Copy-Item $changelogPath -Destination $tsStagingDir -Force
-    Write-Host "  CHANGELOG.md" -ForegroundColor Green
+# The Thunderstore ZIP carries the same mod DLLs as the other two, so it is a
+# binary distribution and the notices for everything compiled into or shipped
+# beside them must travel with it.
+foreach ($doc in @("README.md", "LICENSE", "CHANGELOG.md", "THIRD-PARTY-NOTICES.md")) {
+    $docPath = Join-Path $projectDir $doc
+    if (-not (Test-Path $docPath)) {
+        throw "Required document not found: $doc. Every published ZIP is a binary distribution and must carry it."
+    }
+    Copy-Item $docPath -Destination $tsStagingDir -Force
+    Write-Host "  $doc" -ForegroundColor Green
 }
 
 # Mod DLLs in plugins subfolder

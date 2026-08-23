@@ -1,6 +1,7 @@
 # Build output
 bin/
 obj/
+prebuilt/
 
 # Game reference DLLs (copied at build time)
 libs/

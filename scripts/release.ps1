@@ -7,7 +7,7 @@
 .DESCRIPTION
     This script:
     1. Updates version in csproj and plugin source
-    2. Builds and updates prebuilt DLLs
+    2. Builds the release configuration
     3. Commits the changes
     4. Creates and pushes a git tag to trigger CI release
 
@@ -89,7 +89,7 @@ if ($currentBranch -ne "main") {
     exit 1
 }
 
-$status = git status --porcelain -- ':!prebuilt/'
+$status = git status --porcelain
 if ($status) {
     Write-Host "Error: Working directory has uncommitted changes" -ForegroundColor Red
     Write-Host $status -ForegroundColor Gray
@@ -128,7 +128,6 @@ if (-not $hasExistingTags) {
                 "src/PeakHeadTracking/",
                 "cameraunlock-core",
                 "scripts/",
-                "prebuilt/",
                 "manifest.json",
                 "assets/",
                 "README.md",
@@ -167,7 +166,7 @@ $manifest.version_number = $Version
 $manifest | ConvertTo-Json -Depth 10 | Set-Content $manifestPath -NoNewline
 Write-Host "  Updated manifest.json" -ForegroundColor Gray
 
-# Step 4: Build and update prebuilt DLLs
+# Step 4: Build
 Write-Host "Building release..." -ForegroundColor Cyan
 Push-Location $projectDir
 dotnet build src/PeakHeadTracking/PeakHeadTracking.csproj -c Release
@@ -177,16 +176,6 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-$prebuiltDir = Join-Path $projectDir "prebuilt"
-if (-not (Test-Path $prebuiltDir)) {
-    New-Item -ItemType Directory -Path $prebuiltDir -Force | Out-Null
-}
-
-$buildOutput = "src/PeakHeadTracking/bin/Release/net472"
-Copy-Item "$buildOutput/PeakHeadTracking.dll" $prebuiltDir -Force
-Copy-Item "$buildOutput/CameraUnlock.Core.dll" $prebuiltDir -Force
-Copy-Item "$buildOutput/CameraUnlock.Core.Unity.dll" $prebuiltDir -Force
-Write-Host "  Updated prebuilt DLLs" -ForegroundColor Gray
 Pop-Location
 
 # Step 5: Commit
@@ -194,7 +183,6 @@ Write-Host "Committing changes..." -ForegroundColor Cyan
 git add $csprojPath
 git add $pluginPath
 git add $manifestPath
-git add "$projectDir/prebuilt"
 git add $changelogPath
 git commit -m "Release v$Version"
 if ($LASTEXITCODE -ne 0) {

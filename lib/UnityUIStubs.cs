@@ -1,4 +1,4 @@
-// Unity UI stub for CI/local builds — compiled as UnityEngine.UI.dll
+// Unity UI stub for CI/local builds - compiled as UnityEngine.UI.dll
 namespace UnityEngine.UI {
     public abstract class Graphic : UnityEngine.Behaviour {
         public UnityEngine.Color color { get; set; }

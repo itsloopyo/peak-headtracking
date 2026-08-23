@@ -7,7 +7,7 @@ using UnityEngine.SceneManagement;
 namespace PeakHeadTracking.Patches
 {
     /// <summary>
-    /// Detects gameplay state — determines whether head tracking should be active
+    /// Detects gameplay state - determines whether head tracking should be active
     /// based on scene, character presence, pause menu, and loading screen state.
     /// Uses compiled delegates for fast field access (~10-100x faster than FieldInfo.GetValue).
     /// </summary>
@@ -73,7 +73,7 @@ namespace PeakHeadTracking.Patches
                     }
                 }
 
-                // TODO: pause menu detection is disabled due to initialization order — ReticleCompensation.InitializeReticleReflection() runs after this on first frame
+                // TODO: pause menu detection is disabled due to initialization order - ReticleCompensation.InitializeReticleReflection() runs after this on first frame
                 if (ReticleCompensation.GUIManagerType != null && ReticleCompensation.GUIManagerInstanceField != null)
                 {
                     getGUIManagerInstance = CompiledGetters.ForStaticField(ReticleCompensation.GUIManagerInstanceField);

@@ -7,7 +7,7 @@ using UnityEngine;
 namespace PeakHeadTracking.Patches
 {
     /// <summary>
-    /// Handles reticle compensation — moves the crosshair to show where the avatar is actually aiming
+    /// Handles reticle compensation - moves the crosshair to show where the avatar is actually aiming
     /// when the camera is rotated by head tracking.
     /// </summary>
     internal static class ReticleCompensation
@@ -25,7 +25,7 @@ namespace PeakHeadTracking.Patches
         private static Canvas cachedReticleCanvas;
         private static float cachedCanvasScaleFactor = 1f;
 
-        // Interaction text compensation — move individual elements, not the parent
+        // Interaction text compensation - move individual elements, not the parent
         // (the parent also contains item prompts like "Open" which must stay fixed)
         private static Func<object, object> getInteractName;
         private static Func<object, object> getInteractPromptPrimary;
@@ -72,7 +72,7 @@ namespace PeakHeadTracking.Patches
             getGUIManagerInstance = CompiledGetters.ForStaticField(instanceField);
             getReticleDefault = CompiledGetters.ForInstanceField(reticleDefaultField);
 
-            // Interaction text elements — optional, don't fail if missing
+            // Interaction text elements - optional, don't fail if missing
             string[] interactFields = { "interactName", "interactPromptPrimary", "interactPromptSecondary", "interactPromptHold", "interactPromptLunge" };
             Func<object, object>[] interactGetters = new Func<object, object>[interactFields.Length];
             for (int i = 0; i < interactFields.Length; i++)
@@ -210,7 +210,7 @@ namespace PeakHeadTracking.Patches
             }
 
             // cam.transform.forward IS the game's aim direction because view matrix
-            // modification doesn't touch the transform — only worldToCameraMatrix changes.
+            // modification doesn't touch the transform - only worldToCameraMatrix changes.
             // Distance doesn't matter: all points along the aim ray project to the same
             // screen pixel (eye position is unchanged). The 3-arg overload uses fixed 100f.
             Vector3 aimDir = cam.transform.forward;
