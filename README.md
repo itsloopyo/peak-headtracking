@@ -1,8 +1,8 @@
 # Peak Head Tracking
 
-![Mod GIF](https://raw.githubusercontent.com/itsloopyo/peak-headtracking/main/assets/readme-clip.gif)
+![PEAK running with this mod](https://raw.githubusercontent.com/itsloopyo/peak-headtracking/main/assets/readme-clip.gif)
 
-An **unofficial** BepInEx mod that adds head tracking to PEAK via OpenTrack. Look around naturally with your head while your aim stays independent.
+An unofficial head tracking mod for PEAK that moves the view with your head while your mouse or controller keeps aiming, driven by a webcam, phone, or any OpenTrack compatible tracker, with no VR headset required.
 
 ## Features
 
