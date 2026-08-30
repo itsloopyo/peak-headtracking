@@ -28,7 +28,7 @@
 
 ### Changed
 
-- The mod no longer keeps a centre at all. Every tracker centres itself, so a
+- The mod no longer keeps a centre at all. The tracker app owns centring, so a
   mod-side centre was a second centre in series with the tracker's own and the
   two drifted apart. Centre in your tracker app instead (opentrack's Center
   bind, the CENTER button in Headcam, SteamVR's reset); the mod applies the pose
@@ -36,7 +36,9 @@
   `Recenter View` config entry are gone.
 - Replace the single `Smoothing` config key with `Local Smoothing` (default 0.0) and `Remote Smoothing` (default 0.15), selected per connection from the packet source address. Both apply to positional tracking only; rotation is not smoothed by them, because the rotation path skips the smoothing stage and gets its smoothness from the PoseInterpolator
 - Remove the `Position Smoothing` key: position now uses the connection-selected `Local Smoothing` / `Remote Smoothing` value
-- Remove the hidden 0.15 baseline smoothing floor, so local trackers get zero-latency tracking by default
+- Remove the hidden 0.15 baseline smoothing floor. `Local Smoothing` 0.0 now adds no
+  user smoothing of its own; what is left is the always-on frame interpolation, a flat
+  20 ms time constant that keeps a low-rate tracker smooth on a high-refresh display
 
 ## [1.2.0] - 2026-08-03
 
