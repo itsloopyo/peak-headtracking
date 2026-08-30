@@ -52,6 +52,11 @@ namespace PeakHeadTracking.Input
             {
                 ToggleYawMode();
             }
+
+            if (ChordHotkeys.IsActionPressed(config.ToggleReticleKey.Value, ChordHotkeys.FifthToggleLetter))
+            {
+                ToggleReticle();
+            }
         }
 
         private void ToggleTracking()
@@ -115,6 +120,18 @@ namespace PeakHeadTracking.Input
             config.PositionEnabled.Value = position;
             Patches.CameraPatches.SetRotationEnabled(rotation);
             PeakHeadTrackingPlugin.Logger.LogInfo($"Tracking mode: {label}");
+        }
+
+        /// <summary>
+        /// Toggle reticle compensation. CameraPatches recentres the crosshair on
+        /// the frame after this goes false.
+        /// Bound to ToggleReticleKey (default Insert) and Ctrl+Shift+U.
+        /// </summary>
+        private void ToggleReticle()
+        {
+            bool newState = !config.ShowReticle.Value;
+            config.ShowReticle.Value = newState;
+            PeakHeadTrackingPlugin.Logger.LogInfo($"Reticle compensation: {(newState ? "ON" : "OFF")}");
         }
 
         /// <summary>

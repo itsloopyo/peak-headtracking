@@ -2,8 +2,6 @@ using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using CameraUnlock.Core.Data;
-using CameraUnlock.Core.Math;
 using CameraUnlock.Core.Processing;
 using CameraUnlock.Core.Protocol;
 using CameraUnlock.Core.Unity.Tracking;
@@ -177,18 +175,12 @@ namespace PeakHeadTracking.Camera
                 // Run through interpolation (fills 60Hz→240Hz gaps with linear lerp)
                 var interpolated = interpolator.Update(rawPose, Time.deltaTime);
 
-                // Apply deadzone and sensitivity - but NOT exponential smoothing.
-                // PoseInterpolator already produces smooth output at any frame rate;
-                // adding exponential smoothing on top would double-smooth and add ~60-75ms latency.
-                Quat4 rawQ = QuaternionUtils.FromYawPitchRoll(interpolated.Yaw, interpolated.Pitch, interpolated.Roll);
-                QuaternionUtils.ToEulerYXZ(rawQ, out float yaw, out float pitch, out float roll);
+                // Locality picks LocalSmoothing vs RemoteSmoothing. Re-read every
+                // frame so swapping between a local tracker and a phone on the
+                // network takes effect without a restart.
+                processor.IsRemoteConnection = coreReceiver.IsRemoteConnection;
 
-                yaw = (float)DeadzoneUtils.Apply(yaw, processor.Deadzone.Yaw);
-                pitch = (float)DeadzoneUtils.Apply(pitch, processor.Deadzone.Pitch);
-                roll = (float)DeadzoneUtils.Apply(roll, processor.Deadzone.Roll);
-
-                var processed = new TrackingPose(yaw, pitch, roll, interpolated.TimestampTicks)
-                    .ApplySensitivity(processor.Sensitivity);
+                var processed = processor.Process(interpolated, Time.deltaTime);
 
                 // Write processed values to CameraPatches
                 Patches.CameraPatches.SetProcessedRotation(processed.Yaw, processed.Pitch, processed.Roll);

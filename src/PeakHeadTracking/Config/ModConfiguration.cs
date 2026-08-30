@@ -248,9 +248,7 @@ namespace PeakHeadTracking.Config
                 0.0f,
                 new ConfigDescription(
                     "Smoothing applied when the tracker runs on this machine (loopback). " +
-                    "0 = no smoothing, 1 = heavy. Applies to positional tracking only. " +
-                    "Rotation is not affected: the rotation path skips the smoothing stage, " +
-                    "and rotation smoothness comes from PoseInterpolator instead.",
+                    "0 = no smoothing, 1 = heavy. Covers rotation and position.",
                     new AcceptableValueRange<float>(0f, 1f)
                 )
             );
@@ -261,9 +259,7 @@ namespace PeakHeadTracking.Config
                 0.15f,
                 new ConfigDescription(
                     "Smoothing applied when the tracker is a remote device on the network. " +
-                    "0 = no smoothing, 1 = heavy. Applies to positional tracking only. " +
-                    "Rotation is not affected: the rotation path skips the smoothing stage, " +
-                    "and rotation smoothness comes from PoseInterpolator instead.",
+                    "0 = no smoothing, 1 = heavy. Covers rotation and position.",
                     new AcceptableValueRange<float>(0f, 1f)
                 )
             );

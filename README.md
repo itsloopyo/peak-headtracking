@@ -79,6 +79,7 @@ Two equivalent binding sets - use whichever your keyboard has:
 | Toggle tracking     | `End`       | `Ctrl+Shift+Y`  |
 | Cycle tracking mode | `Page Up`   | `Ctrl+Shift+G`  |
 | Toggle yaw mode     | `Page Down` | `Ctrl+Shift+H`  |
+| Toggle reticle      | `Insert`    | `Ctrl+Shift+U`  |
 
 There is no recentre key. Your tracker app owns the centre: use its own
 control (opentrack's Center bind, the CENTER button in Headcam, SteamVR's

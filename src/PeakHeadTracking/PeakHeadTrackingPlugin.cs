@@ -137,11 +137,10 @@ namespace PeakHeadTracking
             coreReceiver = new OpenTrackReceiver();
             coreReceiver.Log = msg => Logger.LogInfo(msg);
 
-            // No smoothing values here: CameraController runs centering, deadzone and
-            // sensitivity by hand and never calls Process, so the processor's own
-            // smoothing stage is unreachable. Smoothing reaches the position path only.
             processor = new TrackingProcessor
             {
+                LocalSmoothing = modConfig.LocalSmoothing.Value,
+                RemoteSmoothing = modConfig.RemoteSmoothing.Value,
                 Sensitivity = new SensitivitySettings(
                     modConfig.YawSensitivity.Value,
                     modConfig.PitchSensitivity.Value,
