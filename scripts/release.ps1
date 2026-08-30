@@ -183,6 +183,15 @@ $manifest.version_number = $Version
 $manifest | ConvertTo-Json -Depth 10 | Set-Content $manifestPath -NoNewline
 Write-Host "  Updated manifest.json" -ForegroundColor Gray
 
+# install.cmd's MOD_VERSION is what the install writes into the launcher's
+# state file, which is where the launcher looks to spot a stale install.
+$installCmdPath = Join-Path $projectDir "scripts\install.cmd"
+$installCmdContent = Get-Content $installCmdPath -Raw
+if ($installCmdContent -notmatch 'set "MOD_VERSION=[^"]+"') { throw "MOD_VERSION line not found in $installCmdPath" }
+$installCmdContent = $installCmdContent -replace 'set "MOD_VERSION=[^"]+"', "set `"MOD_VERSION=$Version`""
+$installCmdContent | Set-Content $installCmdPath -NoNewline
+Write-Host "  Updated install.cmd" -ForegroundColor Gray
+
 # Step 4: Build
 Write-Host "Building release..." -ForegroundColor Cyan
 Push-Location $projectDir
@@ -200,6 +209,7 @@ Write-Host "Committing changes..." -ForegroundColor Cyan
 git add $csprojPath
 git add $pluginPath
 git add $manifestPath
+git add $installCmdPath
 git add $changelogPath
 git commit -m "Release v$Version"
 if ($LASTEXITCODE -ne 0) {
