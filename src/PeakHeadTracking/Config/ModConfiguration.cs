@@ -1,5 +1,7 @@
 using System;
 using BepInEx.Configuration;
+using CameraUnlock.Core.Data;
+using CameraUnlock.Core.Math;
 using UnityEngine;
 
 namespace PeakHeadTracking.Config
@@ -245,7 +247,7 @@ namespace PeakHeadTracking.Config
             LocalSmoothing = config.Bind(
                 ConfigCategories.SMOOTHING,
                 "Local Smoothing",
-                0.0f,
+                SmoothingUtils.DefaultLocalSmoothing,
                 new ConfigDescription(
                     "Smoothing applied when the tracker runs on this machine (loopback). " +
                     "0 = no smoothing, 1 = heavy. Covers rotation and position.",
@@ -256,7 +258,7 @@ namespace PeakHeadTracking.Config
             RemoteSmoothing = config.Bind(
                 ConfigCategories.SMOOTHING,
                 "Remote Smoothing",
-                0.15f,
+                SmoothingUtils.DefaultRemoteSmoothing,
                 new ConfigDescription(
                     "Smoothing applied when the tracker is a remote device on the network. " +
                     "0 = no smoothing, 1 = heavy. Covers rotation and position.",
@@ -403,28 +405,28 @@ namespace PeakHeadTracking.Config
             PositionLimitX = config.Bind(
                 ConfigCategories.SENSITIVITY,
                 "Position Limit X",
-                0.30f,
+                PositionSettings.Default.LimitX,
                 new ConfigDescription("Maximum lateral displacement in meters", new AcceptableValueRange<float>(0.01f, 0.5f))
             );
 
             PositionLimitY = config.Bind(
                 ConfigCategories.SENSITIVITY,
                 "Position Limit Y",
-                0.20f,
+                PositionSettings.Default.LimitY,
                 new ConfigDescription("Maximum vertical displacement in meters", new AcceptableValueRange<float>(0.01f, 0.5f))
             );
 
             PositionLimitZ = config.Bind(
                 ConfigCategories.SENSITIVITY,
                 "Position Limit Z",
-                0.40f,
+                PositionSettings.Default.LimitZ,
                 new ConfigDescription("Maximum forward displacement in meters", new AcceptableValueRange<float>(0.01f, 0.5f))
             );
 
             PositionLimitZBack = config.Bind(
                 ConfigCategories.SENSITIVITY,
                 "Position Limit Z Back",
-                0.10f,
+                PositionSettings.Default.LimitZBack,
                 new ConfigDescription("Maximum backward displacement in meters. Leaning back is restricted more tightly than leaning forward to stop the camera pulling into the player body.", new AcceptableValueRange<float>(0.01f, 0.5f))
             );
 
