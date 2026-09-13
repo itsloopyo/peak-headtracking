@@ -8,6 +8,7 @@ An unofficial head tracking mod for PEAK that moves the view with your head whil
 
 - **Decoupled look + aim**: Look around freely with your head while your crosshair stays where you're aiming
 - **6DOF head tracking**: Full rotation (yaw, pitch, roll) and positional tracking via OpenTrack UDP protocol
+- **Works with any OpenTrack compatible tracker** - free options available for PC, iOS and Android
 
 ## Requirements
 
@@ -16,6 +17,13 @@ An unofficial head tracking mod for PEAK that moves the view with your head whil
 - Windows 10/11 (x64)
 
 ## Installation
+
+### Lopari
+
+Download [Lopari](https://lopari.app), choose **PEAK**, and click
+**Play with head tracking**.
+
+### Standalone Installer
 
 1. Download the latest release from the [Releases page](https://github.com/itsloopyo/peak-headtracking/releases)
 2. Extract the ZIP anywhere
