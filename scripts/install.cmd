@@ -16,6 +16,13 @@ set "BEPINEX_ARCH=x64"
 set "BEPINEX_VENDOR_ZIP_NAME=BepInExPack_PEAK.zip"
 set "BEPINEX_SUBFOLDER=BepInExPack_PEAK"
 set "MOD_CONTROLS=Controls:&echo   End       - Toggle head tracking on/off&echo   Page Up   - Cycle tracking mode&echo   Page Down - Toggle world/local yaw"
+:: Not used by this mod. Set blank so a value another mod's wrapper left in
+:: the same console does not reach the body.
+set "PLUGIN_SUBFOLDER="
+set "IL2CPP_VENDOR_DIR_NAME="
+set "IL2CPP_VENDOR_ZIP_NAME="
+set "IL2CPP_PLUGIN_DIR_NAME="
+set "IL2CPP_MOD_DLLS="
 :: --- END CONFIG BLOCK ---
 
 :: Pin delayed expansion off before `%*` is expanded on the `call` below.
