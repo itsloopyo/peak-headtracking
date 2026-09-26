@@ -53,6 +53,7 @@ namespace PeakHeadTracking.Tests.ConfigDifferential
                     // BaseUnityPlugin's own ConfigFile throws on this file before any mod code
                     // runs, in the published build and in this one alike.
                     if (!m.BepInExRefused) failures.Add(where + "the frozen reader refused it and BepInEx did not");
+                    LegacyKept(failures, where, m, input.Value);
                     refused++;
                     continue;
                 }
@@ -62,6 +63,7 @@ namespace PeakHeadTracking.Tests.ConfigDifferential
                     Check(failures, where, m.Loaded.Status == ConfigLoadStatus.Created, "status " + m.Loaded.Status + ", not Created");
                     Check(failures, where, SameFields(Migration.Defaults(), m.Loaded.Config), "a first start does not run on the defaults");
                     Check(failures, where, Names(m) == PeakConfigOwner.FileName, "the folder holds " + Names(m));
+                    LegacyKept(failures, where, m, input.Value);
                     created++;
                     continue;
                 }
@@ -99,7 +101,7 @@ namespace PeakHeadTracking.Tests.ConfigDifferential
                     SecondLoad(failures, where, m);
                     migrated++;
                 }
-                Check(failures, where, File.ReadAllBytes(m.LegacyPath).SequenceEqual(input.Value), "the legacy file changed");
+                LegacyKept(failures, where, m, input.Value);
             }
 
             Assert.True(failures.Count == 0, string.Join("\n", failures.Take(40).ToArray()));
@@ -109,40 +111,40 @@ namespace PeakHeadTracking.Tests.ConfigDifferential
         }
 
         /// <summary>
-        /// A read-only legacy file imports as a writable one does and keeps its attribute, bytes
-        /// and write time. Run over the published builds' first-run files and a player's edits.
+        /// A read-only copy of every input with a legacy file imports as a writable one does, and
+        /// keeps its attribute, bytes and write time.
         /// </summary>
         [Fact]
         public void ReadOnlyLegacyFileImportsTheSame()
         {
-            var inputs = new List<byte[]>();
-            foreach (string tag in Corpus.PublishedTags) inputs.Add(Corpus.FirstRun(tag));
-            inputs.Add(Edited());
-            foreach (byte[] bytes in inputs)
+            var failures = new List<string>();
+            int migrated = 0;
+            var inputs = Corpus.Inputs().Where(i => i.Value != null).ToList();
+            inputs.Add(new KeyValuePair<string, byte[]>("edited", Edited()));
+            foreach (KeyValuePair<string, byte[]> input in inputs)
             {
-                Migration writable = Migration.Run(Path.Combine(scratch, "writable"), bytes, defaults);
-                string folder = Path.Combine(scratch, "readonly");
-                if (Directory.Exists(folder))
+                string where = input.Key + ": ";
+                Migration writable = Migration.Run(Path.Combine(scratch, "writable"), input.Value, defaults);
+                Migration readOnly = Migration.Run(Path.Combine(scratch, "readonly"), input.Value, defaults, true);
+
+                Check(failures, where, (File.GetAttributes(readOnly.LegacyPath) & FileAttributes.ReadOnly) != 0, "the legacy file lost its read-only attribute");
+                LegacyKept(failures, where, readOnly, input.Value);
+                Check(failures, where, readOnly.BepInExRefused == writable.BepInExRefused, "BepInEx refused one copy and not the other");
+                if (writable.BepInExRefused || readOnly.BepInExRefused) continue;
+
+                Check(failures, where, readOnly.Loaded.Status == writable.Loaded.Status, "status " + readOnly.Loaded.Status + ", writable " + writable.Loaded.Status);
+                Check(failures, where, SameFields(writable.Loaded.Config, readOnly.Loaded.Config), "the read-only copy runs on " + Difference(writable.Loaded.Config, readOnly.Loaded.Config));
+                bool written = File.Exists(writable.ConfigPath);
+                Check(failures, where, File.Exists(readOnly.ConfigPath) == written, "CameraUnlock.ini exists for one copy only");
+                if (written && File.Exists(readOnly.ConfigPath))
                 {
-                    foreach (string file in Directory.GetFiles(folder)) File.SetAttributes(file, FileAttributes.Normal);
-                    Directory.Delete(folder, true);
+                    Check(failures, where, File.ReadAllBytes(writable.ConfigPath).SequenceEqual(File.ReadAllBytes(readOnly.ConfigPath)), "the two copies wrote different CameraUnlock.ini");
                 }
-                Directory.CreateDirectory(folder);
-                string legacy = Path.Combine(folder, BepInExHost.Guid + ".cfg");
-                File.WriteAllBytes(legacy, bytes);
-                File.SetAttributes(legacy, FileAttributes.ReadOnly);
-                DateTime written = File.GetLastWriteTimeUtc(legacy);
-
-                ConfigOwner<PeakConfig> owner = Migration.Reopen(legacy, defaults);
-                ConfigLoadResult<PeakConfig> loaded = owner.Load();
-
-                Assert.Equal(ConfigLoadStatus.Migrated, loaded.Status);
-                Assert.True(SameFields(writable.Loaded.Config, loaded.Config));
-                Assert.Equal(File.ReadAllBytes(writable.ConfigPath), File.ReadAllBytes(Path.Combine(folder, PeakConfigOwner.FileName)));
-                Assert.Equal(bytes, File.ReadAllBytes(legacy));
-                Assert.Equal(written, File.GetLastWriteTimeUtc(legacy));
-                Assert.True((File.GetAttributes(legacy) & FileAttributes.ReadOnly) != 0);
+                if (writable.Loaded.Status == ConfigLoadStatus.Migrated) migrated++;
             }
+
+            Assert.True(failures.Count == 0, string.Join("\n", failures.Take(40).ToArray()));
+            Assert.True(migrated > 1000, migrated + " read-only inputs migrated");
         }
 
         /// <summary>
@@ -186,6 +188,7 @@ namespace PeakHeadTracking.Tests.ConfigDifferential
         {
             byte[] config = File.ReadAllBytes(first.ConfigPath);
             byte[] legacy = File.ReadAllBytes(first.LegacyPath);
+            DateTime legacyWritten = File.GetLastWriteTimeUtc(first.LegacyPath);
             DateTime configWritten = File.GetLastWriteTimeUtc(first.ConfigPath);
             ConfigOwner<PeakConfig> owner = Migration.Reopen(first.LegacyPath, defaults);
             ConfigLoadResult<PeakConfig> again = owner.Load();
@@ -193,7 +196,19 @@ namespace PeakHeadTracking.Tests.ConfigDifferential
             Check(failures, where, SameFields(first.Loaded.Config, again.Config), "the second load reads other values");
             Check(failures, where, again.Log.Any(l => l.Contains(first.LegacyPath + " is left as it was and is not read.")), "the second load does not say the legacy file is not read");
             Check(failures, where, config.SequenceEqual(File.ReadAllBytes(first.ConfigPath)) && configWritten == File.GetLastWriteTimeUtc(first.ConfigPath), "the second load rewrote CameraUnlock.ini");
-            Check(failures, where, legacy.SequenceEqual(File.ReadAllBytes(first.LegacyPath)), "the second load changed the legacy file");
+            Check(failures, where, legacy.SequenceEqual(File.ReadAllBytes(first.LegacyPath)) && legacyWritten == File.GetLastWriteTimeUtc(first.LegacyPath), "the second load changed the legacy file");
+        }
+
+        /// <summary>The legacy file keeps the bytes and the write time it had before the load, or is still absent.</summary>
+        private static void LegacyKept(List<string> failures, string where, Migration m, byte[] input)
+        {
+            if (input == null)
+            {
+                Check(failures, where, !File.Exists(m.LegacyPath), "a legacy file appeared");
+                return;
+            }
+            Check(failures, where, File.ReadAllBytes(m.LegacyPath).SequenceEqual(input), "the legacy file changed");
+            Check(failures, where, File.GetLastWriteTimeUtc(m.LegacyPath) == m.LegacyWritten, "the legacy file was rewritten");
         }
 
         /// <summary>The approved rules, field by field, from the frozen reader to the map.</summary>

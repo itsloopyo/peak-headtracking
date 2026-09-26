@@ -22,14 +22,24 @@ namespace PeakHeadTracking.Tests.ConfigDifferential
         public ConfigLoadResult<PeakConfig> Loaded;
         public string LegacyPath;
         public string ConfigPath;
+        public DateTime LegacyWritten;
 
-        public static Migration Run(string folder, byte[] legacy, DefaultsFile defaults)
+        public static Migration Run(string folder, byte[] legacy, DefaultsFile defaults, bool readOnly = false)
         {
-            if (Directory.Exists(folder)) Directory.Delete(folder, true);
+            if (Directory.Exists(folder))
+            {
+                foreach (string file in Directory.GetFiles(folder)) File.SetAttributes(file, FileAttributes.Normal);
+                Directory.Delete(folder, true);
+            }
             Directory.CreateDirectory(folder);
             var m = new Migration { LegacyPath = Path.Combine(folder, BepInExHost.Guid + ".cfg") };
             m.ConfigPath = Path.Combine(folder, PeakConfigOwner.FileName);
-            if (legacy != null) File.WriteAllBytes(m.LegacyPath, legacy);
+            if (legacy != null)
+            {
+                File.WriteAllBytes(m.LegacyPath, legacy);
+                if (readOnly) File.SetAttributes(m.LegacyPath, FileAttributes.ReadOnly);
+                m.LegacyWritten = File.GetLastWriteTimeUtc(m.LegacyPath);
+            }
             ConfigFile plugin;
             try
             {
