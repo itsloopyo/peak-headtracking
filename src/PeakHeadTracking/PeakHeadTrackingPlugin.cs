@@ -1,12 +1,13 @@
 using System;
+using System.Collections.Generic;
 using BepInEx;
-using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
+using CameraUnlock.Core.Config;
 using CameraUnlock.Core.Data;
-using CameraUnlock.Core.Math;
 using CameraUnlock.Core.Processing;
 using CameraUnlock.Core.Protocol;
+using PeakHeadTracking.Config;
 using UnityEngine;
 
 namespace PeakHeadTracking
@@ -23,6 +24,12 @@ namespace PeakHeadTracking
         public const string PLUGIN_NAME = "Peak Head Tracking";
         public const string PLUGIN_VERSION = "1.3.0";
 
+        // Shipped as Position Sensitivity X/Y/Z = 2 and Invert Roll = true before the canonical
+        // config, correcting the tracker's pose to PEAK's view. Folded into the code so the view
+        // moves as it did at those defaults.
+        private const float PositionScale = 2.0f;
+        private static readonly SensitivitySettings RotationAxes = new SensitivitySettings(1f, 1f, 1f, invertRoll: true);
+
         // Static logger instance for global access
         internal static new ManualLogSource Logger;
 
@@ -31,8 +38,8 @@ namespace PeakHeadTracking
 
         // Core components
         private GameObject trackingManagerObject;
-        private Config.ModConfiguration modConfig;
-        private Legacy.LegacyConfig startupConfig;
+        private ConfigOwner<PeakConfig> configOwner;
+        private PeakConfig config;
         private OpenTrackReceiver coreReceiver;
         private TrackingProcessor processor;
         private PoseInterpolator interpolator;
@@ -74,18 +81,89 @@ namespace PeakHeadTracking
         }
 
         /// <summary>
-        /// Initialize the configuration system
+        /// The settings live in BepInEx\config\CameraUnlock.ini, read and written by core's config
+        /// owner, with rows set to default following the player's Defaults.ini. Nothing is bound
+        /// through BepInEx's ConfigFile at runtime, so ConfigurationManager does not list them.
+        /// The plugin's .cfg, which earlier builds read, is imported once while CameraUnlock.ini is
+        /// absent and never written.
         /// </summary>
         private void InitializeConfiguration()
         {
-            Logger.LogDebug("Initializing configuration...");
+            configOwner = new ConfigOwner<PeakConfig>(
+                PeakConfigOwner.Options(base.Config, DefaultsFile.PerUser(), message => Logger.LogWarning(message)));
+            ConfigLoadResult<PeakConfig> loaded = configOwner.Load();
+            bool usable = loaded.Status == ConfigLoadStatus.Canonical
+                          || loaded.Status == ConfigLoadStatus.Migrated
+                          || loaded.Status == ConfigLoadStatus.Created;
+            WriteConfigLog(loaded.Log, loaded.Diagnostics, usable);
+            Logger.LogInfo("Config: " + loaded.Status);
 
-            startupConfig = Legacy.LegacyConfigReader.Read(base.Config);
-            modConfig = new Config.ModConfiguration();
-            modConfig.Initialize(base.Config);
+            // The published build did not load at all on a .cfg BepInEx refused to read.
+            if (loaded.Status == ConfigLoadStatus.LegacyRefused)
+            {
+                throw new InvalidOperationException(loaded.Reason);
+            }
+            config = loaded.Config;
+        }
 
-            Logger.LogDebug($"Configuration loaded - UDP Port: {modConfig.UdpPort.Value}, " +
-                           $"Tracking Enabled: {modConfig.TrackingEnabled.Value}");
+        // The owner writes each diagnostic as "<path>: <description>" among lines that only report
+        // what it did, so the complaints are picked out by their text.
+        private static void WriteConfigLog(IEnumerable<string> lines, IEnumerable<CanonicalDiagnostic> diagnostics, bool usable)
+        {
+            var complaints = new HashSet<string>();
+            foreach (CanonicalDiagnostic diagnostic in diagnostics) complaints.Add(diagnostic.Describe());
+            foreach (string line in lines)
+            {
+                bool complaint = false;
+                foreach (string c in complaints)
+                {
+                    if (line.EndsWith(c, StringComparison.Ordinal)) complaint = true;
+                }
+                if (usable && !complaint) Logger.LogInfo(line);
+                else Logger.LogWarning(line);
+            }
+        }
+
+        /// <summary>
+        /// Called after a toggle has applied its new value. A save that fails is logged and the
+        /// session keeps the new value.
+        /// </summary>
+        internal void SaveConfig(Action<PeakConfig> change)
+        {
+            ConfigSaveResult saved = configOwner.Save(change);
+            if (saved.Status == ConfigSaveStatus.Saved)
+            {
+                foreach (string line in saved.Log) Logger.LogInfo(line);
+                return;
+            }
+            foreach (string line in saved.Log) Logger.LogWarning(line);
+            Logger.LogWarning("Config not saved (" + saved.Status + "): " + saved.Reason + " The change applies to this session only.");
+        }
+
+        /// <summary>
+        /// Reads CameraUnlock.ini and Defaults.ini again and applies what they hold. The UDP
+        /// listener restarts either way, as the reload key always did.
+        /// </summary>
+        internal void ReloadConfig()
+        {
+            ConfigReloadResult<PeakConfig> reloaded = configOwner.Reload();
+            WriteConfigLog(reloaded.Log, reloaded.Diagnostics, reloaded.Status != ConfigReloadStatus.Unreadable);
+            if (reloaded.Status == ConfigReloadStatus.Applied)
+            {
+                config = reloaded.Config;
+                ApplyConfig();
+            }
+            else if (reloaded.Status == ConfigReloadStatus.Unreadable)
+            {
+                Logger.LogWarning("Config not reloaded: " + reloaded.Reason + " The settings in use are kept.");
+            }
+
+            coreReceiver.Stop();
+            if (cameraController.IsTrackingEnabled)
+            {
+                coreReceiver.Start(config.UdpPort);
+            }
+            Logger.LogInfo("Configuration reloaded (" + reloaded.Status + ")");
         }
 
         /// <summary>
@@ -141,22 +219,8 @@ namespace PeakHeadTracking
 
             processor = new TrackingProcessor
             {
-                LocalSmoothing = startupConfig.LocalSmoothing,
-                RemoteSmoothing = startupConfig.RemoteSmoothing,
-                Sensitivity = new SensitivitySettings(
-                    startupConfig.YawSensitivity,
-                    startupConfig.PitchSensitivity,
-                    startupConfig.RollSensitivity,
-                    invertYaw: startupConfig.InvertYaw,
-                    invertPitch: startupConfig.InvertPitch,
-                    invertRoll: startupConfig.InvertRoll
-                ),
-                Deadzone = startupConfig.EnableDeadzone
-                    ? new DeadzoneSettings(
-                        startupConfig.DeadzoneYaw,
-                        startupConfig.DeadzonePitch,
-                        startupConfig.DeadzoneRoll)
-                    : DeadzoneSettings.None
+                Sensitivity = RotationAxes,
+                Deadzone = DeadzoneSettings.None
             };
 
             // Initialize PoseInterpolator
@@ -164,38 +228,45 @@ namespace PeakHeadTracking
 
             // Add camera controller component (primary camera control)
             cameraController = trackingManagerObject.AddComponent<Camera.CameraController>();
-            cameraController.Initialize(modConfig, coreReceiver, processor, interpolator);
+            cameraController.Initialize(coreReceiver, processor, interpolator);
 
-            // Initialize PositionProcessor with config values
-            positionProcessor = new PositionProcessor
-            {
-                Settings = PositionSettings.Symmetric(
-                    startupConfig.PositionSensitivityX,
-                    startupConfig.PositionSensitivityY,
-                    startupConfig.PositionSensitivityZ,
-                    startupConfig.PositionLimitX,
-                    startupConfig.PositionLimitY,
-                    startupConfig.PositionLimitZ,
-                    startupConfig.PositionLimitZBack,
-                    localSmoothing: startupConfig.LocalSmoothing,
-                    remoteSmoothing: startupConfig.RemoteSmoothing,
-                    invertX: true, invertY: false, invertZ: false
-                )
-            };
+            positionProcessor = new PositionProcessor();
             positionInterpolator = new PositionInterpolator();
 
             // Expose receiver to CameraPatches for zero-latency access
             Patches.CameraPatches.SetReceiver(coreReceiver);
-            Patches.CameraPatches.SetPositionProcessors(positionProcessor, positionInterpolator, modConfig.PositionEnabled);
-            Patches.CameraPatches.SetNearClipConfig(modConfig.NearClipOverride);
-            Patches.CameraPatches.SetReticleConfig(modConfig.ShowReticle);
-            Patches.CameraPatches.SetYawModeConfig(modConfig.WorldSpaceYaw);
+            Patches.CameraPatches.SetPositionProcessors(positionProcessor, positionInterpolator);
 
             // Add hotkey manager component
             hotkeyManager = trackingManagerObject.AddComponent<Input.HotkeyManager>();
-            hotkeyManager.Initialize(modConfig, cameraController, coreReceiver);
+            hotkeyManager.Initialize(this, cameraController, coreReceiver);
+
+            ApplyConfig();
 
             Logger.LogDebug("All components initialized");
+        }
+
+        /// <summary>
+        /// Hands the settings in <see cref="config"/> to every part of the mod that reads one.
+        /// </summary>
+        private void ApplyConfig()
+        {
+            processor.LocalSmoothing = config.LocalSmoothing;
+            processor.RemoteSmoothing = config.RemoteSmoothing;
+
+            PositionSettings limits = config.Position;
+            positionProcessor.Settings = new PositionSettings(
+                PositionScale, PositionScale, PositionScale,
+                limits.LimitX, limits.LimitY, limits.LimitYDown, limits.LimitZ, limits.LimitZBack,
+                config.LocalSmoothing, config.RemoteSmoothing,
+                invertX: true, invertY: false, invertZ: false);
+
+            Patches.CameraPatches.SetNearClip(config.MinNearClip);
+            Patches.CameraPatches.SetWorldSpaceYaw(config.WorldSpaceYaw);
+            Patches.CameraPatches.SetRotationEnabled(config.RotationEnabled);
+            Patches.CameraPatches.SetPositionEnabled(config.PositionEnabled);
+            cameraController.DebugLogging = config.DebugLogging;
+            hotkeyManager.Apply(config);
         }
 
         /// <summary>
@@ -206,17 +277,19 @@ namespace PeakHeadTracking
             Logger.LogDebug("Plugin Start() called");
 
             // Start receiving UDP data if tracking is enabled
-            if (startupConfig.TrackingEnabled)
+            if (config.EnableOnStartup)
             {
-                coreReceiver.Start(startupConfig.UdpPort);
+                coreReceiver.Start(config.UdpPort);
                 cameraController.SetTrackingEnabled(true);
-                Logger.LogInfo($"Head tracking started, listening on UDP port {startupConfig.UdpPort}");
+                Logger.LogInfo($"Head tracking started, listening on UDP port {config.UdpPort}");
             }
             else
             {
                 Logger.LogInfo("Head tracking disabled by configuration");
             }
         }
+
+        internal int UdpPort => config.UdpPort;
 
         private bool destroyed;
 
@@ -259,7 +332,7 @@ namespace PeakHeadTracking
             // Clear receiver reference from CameraPatches
             Patches.CameraPatches.SetReceiver(null);
 
-            modConfig = null;
+            config = null;
 
             Logger.LogInfo("Cleanup complete");
         }

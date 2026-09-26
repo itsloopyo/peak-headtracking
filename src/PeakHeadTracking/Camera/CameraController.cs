@@ -5,7 +5,6 @@ using UnityEngine.SceneManagement;
 using CameraUnlock.Core.Processing;
 using CameraUnlock.Core.Protocol;
 using CameraUnlock.Core.Unity.Tracking;
-using PeakHeadTracking.Config;
 
 namespace PeakHeadTracking.Camera
 {
@@ -18,7 +17,6 @@ namespace PeakHeadTracking.Camera
     [DefaultExecutionOrder(1000)]
     public class CameraController : MonoBehaviour
     {
-        private ModConfiguration config;
         private OpenTrackReceiver coreReceiver;
         private TrackingProcessor processor;
         private PoseInterpolator interpolator;
@@ -42,16 +40,11 @@ namespace PeakHeadTracking.Camera
         /// <summary>
         /// Initialize the camera controller
         /// </summary>
-        public void Initialize(ModConfiguration modConfig, OpenTrackReceiver trackReceiver, TrackingProcessor trackingProcessor, PoseInterpolator poseInterpolator)
+        public void Initialize(OpenTrackReceiver trackReceiver, TrackingProcessor trackingProcessor, PoseInterpolator poseInterpolator)
         {
-            config = modConfig;
             coreReceiver = trackReceiver;
             processor = trackingProcessor;
             interpolator = poseInterpolator;
-
-            // Configuration validation - ensure required config entries exist
-            if (config.MaintainRelativePosition == null)
-                throw new InvalidOperationException("MaintainRelativePosition configuration is required");
 
             isInitialized = true;
             PeakHeadTrackingPlugin.Logger.LogDebug("CameraController initialized");
@@ -186,7 +179,7 @@ namespace PeakHeadTracking.Camera
                 Patches.CameraPatches.SetProcessedRotation(processed.Yaw, processed.Pitch, processed.Roll);
             }
 
-            if (config != null && config.DebugLogging.Value && Time.frameCount % DebugLogIntervalFrames == 0)
+            if (DebugLogging && Time.frameCount % DebugLogIntervalFrames == 0)
             {
                 LogDebugState();
             }
@@ -229,6 +222,12 @@ namespace PeakHeadTracking.Camera
 
             PeakHeadTrackingPlugin.Logger.LogInfo($"Tracking {(enabled ? "enabled" : "disabled")}");
         }
+
+        /// <summary>[Logging] DebugLogging: log the tracking state every DebugLogIntervalFrames frames.</summary>
+        public bool DebugLogging { get; set; }
+
+        /// <summary>Whether head tracking is on this session, which End toggles.</summary>
+        public bool IsTrackingEnabled => isTrackingActive;
 
         /// <summary>
         /// Get current tracking state

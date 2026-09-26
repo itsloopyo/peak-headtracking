@@ -1,4 +1,3 @@
-using BepInEx.Configuration;
 using CameraUnlock.Core.Data;
 using CameraUnlock.Core.Math;
 using CameraUnlock.Core.Processing;
@@ -42,16 +41,13 @@ namespace PeakHeadTracking.Patches
         // Position processing
         private static PositionProcessor positionProcessor;
         private static PositionInterpolator positionInterpolator;
-        private static ConfigEntry<bool> positionEnabledConfig;
-
-        // Reticle compensation
-        private static ConfigEntry<bool> showReticleConfig;
+        private static bool positionEnabled;
 
         // Yaw mode: true = world-space (horizon-locked), false = camera-local
-        private static ConfigEntry<bool> worldSpaceYawConfig;
+        private static bool worldSpaceYaw;
 
-        // Near clip plane override
-        private static ConfigEntry<float> nearClipConfig;
+        // Near clip plane minimum, [Camera] MinNearClip
+        private static float minNearClip;
         private static float storedNearClipPlane;
 
         /// <summary>
@@ -62,26 +58,26 @@ namespace PeakHeadTracking.Patches
             receiver = coreReceiver;
         }
 
-        public static void SetPositionProcessors(PositionProcessor posProccesor, PositionInterpolator posInterp, ConfigEntry<bool> posEnabled)
+        public static void SetPositionProcessors(PositionProcessor posProccesor, PositionInterpolator posInterp)
         {
             positionProcessor = posProccesor;
             positionInterpolator = posInterp;
-            positionEnabledConfig = posEnabled;
         }
 
-        public static void SetNearClipConfig(ConfigEntry<float> config)
+        /// <summary>Enable or disable positional head tracking. Rotation is gated separately.</summary>
+        public static void SetPositionEnabled(bool enabled)
         {
-            nearClipConfig = config;
+            positionEnabled = enabled;
         }
 
-        public static void SetReticleConfig(ConfigEntry<bool> config)
+        public static void SetNearClip(float minimum)
         {
-            showReticleConfig = config;
+            minNearClip = minimum;
         }
 
-        public static void SetYawModeConfig(ConfigEntry<bool> config)
+        public static void SetWorldSpaceYaw(bool worldSpace)
         {
-            worldSpaceYawConfig = config;
+            worldSpaceYaw = worldSpace;
         }
 
         // Processed values after the full pipeline (for compatibility)
@@ -89,7 +85,7 @@ namespace PeakHeadTracking.Patches
         private static float currentPitch = 0f;
 
         private static bool headTrackingEnabled = false;
-        private static bool rotationEnabled = true;
+        private static bool rotationEnabled;
         private static bool hasLoggedFirstApplication = false;
 
         // Pre-processed rotation values - written by CameraController after TrackingProcessor pipeline
@@ -140,7 +136,7 @@ namespace PeakHeadTracking.Patches
         /// </summary>
         internal static float GetEffectiveNearClip(float baseNearClip)
         {
-            return (nearClipConfig != null && baseNearClip < nearClipConfig.Value) ? nearClipConfig.Value : baseNearClip;
+            return baseNearClip < minNearClip ? minNearClip : baseNearClip;
         }
 
         /// <summary>
@@ -289,7 +285,7 @@ namespace PeakHeadTracking.Patches
             bool hasRotMovement = Mathf.Abs(yaw) >= TrackingConstants.MovementThreshold ||
                                   Mathf.Abs(pitch) >= TrackingConstants.MovementThreshold ||
                                   Mathf.Abs(roll) >= TrackingConstants.MovementThreshold;
-            bool positionActive = positionProcessor != null && positionEnabledConfig != null && positionEnabledConfig.Value && receiver != null;
+            bool positionActive = positionProcessor != null && positionEnabled && receiver != null;
             bool applyRotation = rotationEnabled && hasRotMovement;
 
             if (!applyRotation && !positionActive)
@@ -304,7 +300,6 @@ namespace PeakHeadTracking.Patches
             // so cam.transform.forward (the game's aim direction) is unchanged in both modes.
             if (applyRotation)
             {
-                bool worldSpaceYaw = worldSpaceYawConfig != null ? worldSpaceYawConfig.Value : true;
                 if (worldSpaceYaw)
                 {
                     // ApplyHeadRotationDecomposed does not invert roll internally,
@@ -352,14 +347,14 @@ namespace PeakHeadTracking.Patches
 
             // Store and override near clip plane
             storedNearClipPlane = cam.nearClipPlane;
-            if (nearClipConfig != null && cam.nearClipPlane < nearClipConfig.Value)
+            if (cam.nearClipPlane < minNearClip)
             {
-                cam.nearClipPlane = nearClipConfig.Value;
+                cam.nearClipPlane = minNearClip;
             }
 
-            // Update reticle position - cam.transform.forward IS the game's aim direction
-            // because view matrix modification doesn't touch the transform
-            if (showReticleConfig != null && showReticleConfig.Value && ReticleCompensation.CanUpdateReticle())
+            // The crosshair always follows the aim: cam.transform.forward IS the game's aim
+            // direction because view matrix modification doesn't touch the transform
+            if (ReticleCompensation.CanUpdateReticle())
             {
                 ReticleCompensation.UpdateReticlePosition(cam);
             }

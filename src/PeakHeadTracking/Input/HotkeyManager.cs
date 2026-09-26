@@ -1,72 +1,97 @@
-using UnityEngine;
+using CameraUnlock.Core.Input;
 using CameraUnlock.Core.Protocol;
+using CameraUnlock.Core.Tracking;
 using CameraUnlock.Core.Unity.Extensions;
-using PeakHeadTracking.Config;
 using PeakHeadTracking.Camera;
+using PeakHeadTracking.Config;
+using UnityEngine;
 
 namespace PeakHeadTracking.Input
 {
     /// <summary>
-    /// Manages hotkey input for runtime control.
-    /// Each standard action has two equivalent bindings (nav-cluster + Ctrl+Shift chord),
-    /// using the shared ChordHotkeys letter assignments from cameraunlock-core.
+    /// Polls the hotkey lists from CameraUnlock.ini. Every entry of a list fires its action, the
+    /// Ctrl+Shift chords included. The tracking mode and the yaw mode are saved the moment they
+    /// change; End changes the session only.
     /// </summary>
     public class HotkeyManager : MonoBehaviour
     {
-        private ModConfiguration config;
+        private PeakHeadTrackingPlugin plugin;
         private CameraController cameraController;
         private OpenTrackReceiver coreReceiver;
 
-        // Three-state cycle index: 0 = full, 1 = rotation only, 2 = position only.
-        private int trackingModeIndex = 0;
+        private KeyBinding[] toggleKeys = new KeyBinding[0];
+        private KeyBinding[] cycleTrackingModeKeys = new KeyBinding[0];
+        private KeyBinding[] yawModeKeys = new KeyBinding[0];
+        private KeyBinding[] reloadConfigKeys = new KeyBinding[0];
 
-        public void Initialize(ModConfiguration modConfig, CameraController camController, OpenTrackReceiver trackReceiver)
+        private TrackingMode trackingMode;
+        private bool worldSpaceYaw;
+
+        internal void Initialize(PeakHeadTrackingPlugin owner, CameraController camController, OpenTrackReceiver trackReceiver)
         {
-            config = modConfig;
+            plugin = owner;
             cameraController = camController;
             coreReceiver = trackReceiver;
 
             PeakHeadTrackingPlugin.Logger.LogDebug("HotkeyManager initialized");
         }
 
+        /// <summary>Takes the hotkeys, the tracking mode and the yaw mode from a loaded config.</summary>
+        internal void Apply(PeakConfig config)
+        {
+            toggleKeys = Parse("ToggleKey", config.ToggleKeyName);
+            cycleTrackingModeKeys = Parse("CycleTrackingModeKey", config.CycleTrackingModeKeyName);
+            yawModeKeys = Parse("YawModeKey", config.YawModeKeyName);
+            reloadConfigKeys = Parse("ReloadConfigKey", config.ReloadConfigKeyName);
+            trackingMode = TrackingModeChannels.Decode(config.RotationEnabled, config.PositionEnabled).Value;
+            worldSpaceYaw = config.WorldSpaceYaw;
+        }
+
+        // The table's hotkey codec has read every list of a loaded file. Only a legacy import the
+        // owner deferred, over a key with no name, hands one over that does not parse; that
+        // action then has no keys this session.
+        private static KeyBinding[] Parse(string row, string text)
+        {
+            KeyBinding[] bindings;
+            string error;
+            if (KeyBindings.TryParse(text, out bindings, out error)) return bindings;
+            PeakHeadTrackingPlugin.Logger.LogError(row + "=" + text + " is not a hotkey list (" + error + "), so it has no keys this session.");
+            return new KeyBinding[0];
+        }
+
         private void Update()
         {
-            if (config == null) return;
+            if (plugin == null || !UnityEngine.Input.anyKeyDown) return;
 
-            if (ChordHotkeys.IsActionPressed(config.ToggleTrackingKey.Value, ChordHotkeys.ToggleLetter))
+            if (KeyBindingInput.IsTriggered(toggleKeys))
             {
                 ToggleTracking();
             }
 
-            if (UnityEngine.Input.GetKeyDown(config.ReloadConfigKey.Value))
+            if (KeyBindingInput.IsTriggered(reloadConfigKeys))
             {
-                ReloadConfig();
+                plugin.ReloadConfig();
             }
 
-            if (ChordHotkeys.IsActionPressed(config.TogglePositionKey.Value, ChordHotkeys.PositionLetter))
+            if (KeyBindingInput.IsTriggered(cycleTrackingModeKeys))
             {
                 CycleTrackingMode();
             }
 
-            if (ChordHotkeys.IsActionPressed(config.YawModeKey.Value, ChordHotkeys.FourthToggleLetter))
+            if (KeyBindingInput.IsTriggered(yawModeKeys))
             {
                 ToggleYawMode();
             }
-
-            if (ChordHotkeys.IsActionPressed(config.ToggleReticleKey.Value, ChordHotkeys.FifthToggleLetter))
-            {
-                ToggleReticle();
-            }
         }
 
+        /// <summary>Turns head tracking on or off for this session. Never saved.</summary>
         private void ToggleTracking()
         {
-            bool newState = !config.TrackingEnabled.Value;
-            config.TrackingEnabled.Value = newState;
+            bool newState = !cameraController.IsTrackingEnabled;
 
             if (newState && !coreReceiver.IsReceiving && !coreReceiver.IsFailed)
             {
-                coreReceiver.Start(config.UdpPort.Value);
+                coreReceiver.Start(plugin.UdpPort);
             }
 
             cameraController.SetTrackingEnabled(newState);
@@ -74,75 +99,39 @@ namespace PeakHeadTracking.Input
             PeakHeadTrackingPlugin.Logger.LogInfo($"Tracking toggled: {(newState ? "ON" : "OFF")}");
         }
 
-        private void ReloadConfig()
-        {
-            config.Reload();
-
-            coreReceiver.Dispose();
-            coreReceiver.Start(config.UdpPort.Value);
-
-            PeakHeadTrackingPlugin.Logger.LogInfo("Configuration reloaded");
-        }
-
         /// <summary>
-        /// Cycle through the three tracking modes:
-        ///   0: full head tracking (rotation + position)
-        ///   1: rotation only (position disabled)
-        ///   2: position only (rotation disabled)
-        /// Bound to TogglePositionKey (default Page Up) and Ctrl+Shift+G.
+        /// Cycles rotation and position, rotation only, position only, and saves the mode as the
+        /// RotationEnabled and PositionEnabled pair.
         /// </summary>
         private void CycleTrackingMode()
         {
-            trackingModeIndex = (trackingModeIndex + 1) % 3;
+            trackingMode = (TrackingMode)(((int)trackingMode + 1) % 3);
+            bool rotation, position;
+            TrackingModeChannels.Encode(trackingMode, out rotation, out position);
 
-            bool rotation;
-            bool position;
-            string label;
-            switch (trackingModeIndex)
-            {
-                case 1:
-                    rotation = true;
-                    position = false;
-                    label = "rotation only (position disabled)";
-                    break;
-                case 2:
-                    rotation = false;
-                    position = true;
-                    label = "position only (rotation disabled)";
-                    break;
-                default:
-                    rotation = true;
-                    position = true;
-                    label = "full (rotation + position)";
-                    break;
-            }
-
-            config.PositionEnabled.Value = position;
             Patches.CameraPatches.SetRotationEnabled(rotation);
-            PeakHeadTrackingPlugin.Logger.LogInfo($"Tracking mode: {label}");
+            Patches.CameraPatches.SetPositionEnabled(position);
+            PeakHeadTrackingPlugin.Logger.LogInfo($"Tracking mode: {trackingMode.Description()}");
+
+            plugin.SaveConfig(c =>
+            {
+                c.RotationEnabled = rotation;
+                c.PositionEnabled = position;
+            });
         }
 
         /// <summary>
-        /// Toggle reticle compensation. CameraPatches recentres the crosshair on
-        /// the frame after this goes false.
-        /// Bound to ToggleReticleKey (default Insert) and Ctrl+Shift+U.
-        /// </summary>
-        private void ToggleReticle()
-        {
-            bool newState = !config.ShowReticle.Value;
-            config.ShowReticle.Value = newState;
-            PeakHeadTrackingPlugin.Logger.LogInfo($"Reticle compensation: {(newState ? "ON" : "OFF")}");
-        }
-
-        /// <summary>
-        /// Toggle world-space (horizon-locked) vs camera-local yaw.
-        /// Bound to YawModeKey (default Page Down) and Ctrl+Shift+H.
+        /// Switches between world-space (horizon-locked) and camera-local yaw, and saves it as
+        /// WorldSpaceYaw.
         /// </summary>
         private void ToggleYawMode()
         {
-            bool newWorldSpace = !config.WorldSpaceYaw.Value;
-            config.WorldSpaceYaw.Value = newWorldSpace;
-            PeakHeadTrackingPlugin.Logger.LogInfo($"Yaw mode: {(newWorldSpace ? "world-space (horizon-locked)" : "camera-local")}");
+            worldSpaceYaw = !worldSpaceYaw;
+            bool saved = worldSpaceYaw;
+            Patches.CameraPatches.SetWorldSpaceYaw(saved);
+            PeakHeadTrackingPlugin.Logger.LogInfo($"Yaw mode: {(saved ? "world-space (horizon-locked)" : "camera-local")}");
+
+            plugin.SaveConfig(c => c.WorldSpaceYaw = saved);
         }
     }
 }

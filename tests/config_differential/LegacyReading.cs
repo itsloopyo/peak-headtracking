@@ -24,7 +24,7 @@ namespace PeakHeadTracking.Tests.ConfigDifferential
     /// <summary>
     /// What one build ran on for one input: the load status, every setting, the startup state and
     /// the hotkeys it registered. A hotkey is written as its bindings, "modifiers:KeyCode" with the
-    /// modifiers as core's KeyModifiers bits (6 is Ctrl+Shift), so a KeyCode with no name still
+    /// modifiers as core's KeyModifiers bits (3 is Ctrl+Shift), so a KeyCode with no name still
     /// compares.
     /// </summary>
     internal sealed class LegacyReading
@@ -91,7 +91,7 @@ namespace PeakHeadTracking.Tests.ConfigDifferential
         {
             var items = new List<string>();
             if (primary != KeyCode.None) items.Add("0:" + ((int)primary).ToString(CultureInfo.InvariantCulture));
-            if (chordLetter.HasValue) items.Add("6:" + ((int)chordLetter.Value).ToString(CultureInfo.InvariantCulture));
+            if (chordLetter.HasValue) items.Add("3:" + ((int)chordLetter.Value).ToString(CultureInfo.InvariantCulture));
             return string.Join(", ", items.ToArray());
         }
 

@@ -4,6 +4,15 @@
 
 An unofficial head tracking mod for PEAK that moves the view with your head while your mouse or controller keeps aiming, driven by OpenTrack over UDP, with no VR headset required.
 
+Settings live in `BepInEx\config\CameraUnlock.ini`, not in a BepInEx `.cfg`,
+so BepInEx's ConfigurationManager no longer lists them. Edit the file with any
+text editor. The first start of this version reads your settings from
+`BepInEx\config\com.cameraunlock.peak.headtracking.cfg`, the file earlier
+versions used, writes them into `CameraUnlock.ini`, and leaves the old file as it
+was. A setting set to `default` in `CameraUnlock.ini` takes its value from
+`Defaults.ini`, which every head tracking mod that keeps its settings in
+`CameraUnlock.ini` reads. See [Configuration](#configuration).
+
 ## Features
 
 - **Decoupled look + aim**: Look around freely with your head while your crosshair stays where you're aiming
@@ -120,7 +129,7 @@ Two equivalent binding sets - use whichever your keyboard has:
 | Toggle tracking     | `End`       | `Ctrl+Shift+Y`  |
 | Cycle tracking mode | `Page Up`   | `Ctrl+Shift+G`  |
 | Toggle yaw mode     | `Page Down` | `Ctrl+Shift+H`  |
-| Toggle reticle      | `Insert`    | `Ctrl+Shift+U`  |
+| Reload settings     | `F12`       |                 |
 
 There is no recentre key. Your tracker app owns the centre: use its own
 control (opentrack's Center bind, the CENTER button in Headcam, SteamVR's
@@ -133,119 +142,145 @@ reset) and the mod applies whatever pose it receives.
 3. Rotational tracking disabled, positional tracking enabled
 4. Back to normal
 
+`Page Down` / `Ctrl+Shift+H` switches yaw between world-locked (horizon-stable,
+the default) and camera-local, which follows the camera's own up axis.
+
+The tracking mode and the yaw mode are saved to `CameraUnlock.ini` as you switch
+them, so the game starts in the mode you left it in. `End` is not saved: head
+tracking starts on or off as `EnableOnStartup` says.
+
+`F12` reads `CameraUnlock.ini` and `Defaults.ini` again, applies them, and
+restarts the UDP listener, without restarting the game.
+
+While head tracking moves the view, the game's crosshair and the interaction
+prompts beside it move to where your character is aiming. No setting or key
+turns that off.
+
+Every hotkey is a list in the config file, so you can rebind a key, add one or
+remove one there. See [Configuration](#configuration).
+
 ## Configuration
 
-The mod creates a config file at `BepInEx/config/com.cameraunlock.peak.headtracking.cfg` on first run.
+<!-- cameraunlock:config -->
+The mod reads its settings from `BepInEx\config\CameraUnlock.ini` in the game folder, and creates the file when it starts and finds none. Edit it with any text editor.
 
-The section headers are numbered (`[01. Connection]`, `[02. General]`, and so
-on) so they sort in a sensible order. The numbers are part of the section name:
-a setting written under `[Connection]` instead of `[01. Connection]` is in a
-section the mod never looks at, and it silently keeps its default.
+A setting set to `default` takes its value from `Defaults.ini`, which every head tracking mod that keeps its settings in `CameraUnlock.ini` reads. Head tracking mods that keep their settings in another file do not read it, and neither do earlier versions of this mod. Writing a value in place of `default` changes that setting for this game only. When the mod saves a setting that a hotkey changed in game, it writes the new value in place of `default`, so that setting no longer follows `Defaults.ini` in this game until you set it to `default` again.
 
-A comment has to sit on its own line. BepInEx splits each line at the first `=`
-and takes everything after it as the value, so a trailing `# note` becomes part
-of the value, the conversion fails, and the entry silently keeps its default -
-the only trace is a line in `BepInEx/LogOutput.log`. Put explanations above the
-key, never after it.
+`Defaults.ini` is `%AppData%\CameraUnlock\Defaults.ini` on Windows; `$XDG_CONFIG_HOME/CameraUnlock/Defaults.ini` on Linux, or `~/.config/CameraUnlock/Defaults.ini` where `XDG_CONFIG_HOME` is not set, under Wine and Proton too; and `~/Library/Application Support/CameraUnlock/Defaults.ini` on macOS. The mod's log, where it writes one, names the file it read.
+
+When the mod starts and finds no `Defaults.ini`, it creates one holding the built-in values, unless Windows runs the game as a packaged app, or the game runs on Linux or macOS without Wine or Proton. The mod never changes `Defaults.ini` after that. Edit it with any text editor.
+
+Earlier versions of the mod kept these settings in `com.cameraunlock.peak.headtracking.cfg`, in the same folder. The first time this version starts and finds no `CameraUnlock.ini`, it reads your settings from `com.cameraunlock.peak.headtracking.cfg` and writes them into `CameraUnlock.ini`. It never changes `com.cameraunlock.peak.headtracking.cfg`, and does not read it again while `CameraUnlock.ini` exists.
+
+A setting that the defaults below set to `default` is written as `default` when the value imported for it equals its default at that start, which is the value `Defaults.ini` gives it, or the built-in value where `Defaults.ini` gives none. It then follows `Defaults.ini`. Every other setting is written with the value imported for it. `RotationEnabled` and `PositionEnabled` are one setting here, the tracking mode, so both are written as `default` or neither is.
+
+Comments, and keys the mod never read, are not carried over. Nor are these, where your old file had them:
+
+- Reticle settings, and a key that toggled the reticle.
+- A sensitivity, scale, deadzone, response curve or axis inversion you changed from its default. Set these in your tracker instead.
+- The setting for a feature that earlier versions shipped switched off while it was untested. It now follows the mod's default.
+
+An older version of the mod reads `com.cameraunlock.peak.headtracking.cfg` and never reads `CameraUnlock.ini`, so a setting you change after updating is not in `com.cameraunlock.peak.headtracking.cfg`.
+
+Deleting only `CameraUnlock.ini` makes the next start read `com.cameraunlock.peak.headtracking.cfg` again. To go back to the defaults, replace everything in `CameraUnlock.ini` with the defaults below. Every setting they set to `default` then follows `Defaults.ini`.
+
+On Linux and macOS without Wine or Proton, this version reads its settings and saves none: it creates no `CameraUnlock.ini`, reads your settings from `com.cameraunlock.peak.headtracking.cfg` again at every start while there is no `CameraUnlock.ini`, and a change made in game lasts until the game closes.
+
+BepInEx's ConfigurationManager no longer lists these settings.
+
+The built-in value of each setting set to `default` below:
+
+- `UdpPort=4242`
+- `EnableOnStartup=true`
+- `WorldSpaceYaw=true`
+- `RotationEnabled=true`
+- `LocalSmoothing=0.0`
+- `RemoteSmoothing=0.15`
+- `PositionEnabled=true`
+- `PositionLimitX=0.3`
+- `PositionLimitY=0.2`
+- `PositionLimitYDown=0.2`
+- `PositionLimitZ=0.4`
+- `PositionLimitZBack=0.1`
+- `ToggleKey=End, Ctrl+Shift+Y`
+- `CycleTrackingModeKey=PageUp, Ctrl+Shift+G`
+- `YawModeKey=PageDown, Ctrl+Shift+H`
+
+With every setting at its default, the file reads:
 
 ```ini
-[01. Connection]
-# Must match OpenTrack output port (1024-65535)
-UDP Port = 4242
-# Seconds before reconnection attempt (1-60)
-Reconnect Timeout = 5
-# Max packets to buffer (10-500)
-Packet Buffer Size = 100
+; PEAK head tracking settings.
+; Comments start with ; and go on their own line. Text after a value is part of the value.
+; Hotkeys are key names such as End, PageUp or Ctrl+Shift+Y. Separate several with commas; leave empty for none.
+; A setting set to default takes its value from Defaults.ini, which every head tracking mod
+; that keeps its settings in CameraUnlock.ini reads: %AppData%\CameraUnlock\Defaults.ini on
+; Windows, $XDG_CONFIG_HOME/CameraUnlock/Defaults.ini (normally ~/.config/CameraUnlock) on
+; Linux, under Wine and Proton too, and ~/Library/Application Support/CameraUnlock/Defaults.ini
+; on macOS. The log names the file it read. Write a value instead of default to change that
+; setting for this game only.
 
-[02. General]
-# Start with tracking enabled
-Tracking Enabled = true
-# Enable lean/positional tracking (6DOF)
-Position Enabled = true
-# Play sounds for tracking state changes
-Enable Audio Feedback = true
-# Move the crosshair to the real aim point while head tracking is active
-Show Reticle = true
-# true = horizon-locked yaw (default), false = camera-local yaw
-World Space Yaw = true
+[CameraUnlock]
+; Written by the mod. Leave this section in place.
+ConfigFormat=1
 
-[03. Sensitivity]
-# Horizontal rotation (0.1-5.0)
-Yaw Sensitivity = 1.0
-# Vertical rotation (0.1-5.0)
-Pitch Sensitivity = 1.0
-# Head tilt (0.1-5.0)
-Roll Sensitivity = 1.0
-Invert Yaw = false
-Invert Pitch = false
-Invert Roll = true
-# Lateral sensitivity (0.0-5.0)
-Position Sensitivity X = 2.0
-# Vertical sensitivity (0.0-5.0)
-Position Sensitivity Y = 2.0
-# Depth sensitivity (0.0-5.0)
-Position Sensitivity Z = 2.0
-# Max lateral offset in meters (0.01-0.5)
-Position Limit X = 0.30
-# Max vertical offset in meters (0.01-0.5)
-Position Limit Y = 0.20
-# Max forward offset in meters (0.01-0.5)
-Position Limit Z = 0.40
-# Max backward offset in meters (0.01-0.5)
-Position Limit Z Back = 0.10
+[Network]
+; UDP port the mod receives tracker data on (OpenTrack protocol).
+UdpPort=default
 
-[04. Rotation Limits]
-# Clamp pitch rotation
-Enable Pitch Limits = true
-# Max look-down angle (-90 to 0)
-Minimum Pitch = -85
-# Max look-up angle (0 to 90)
-Maximum Pitch = 85
-# Enable head tilt
-Enable Roll = true
-# Clamp roll rotation
-Enable Roll Limits = true
-# Max tilt angle (0-90)
-Maximum Roll = 30
+[General]
+; true: head tracking is on when the game starts. ToggleKey turns it on and off.
+EnableOnStartup=default
+; true: yaw turns around the world's up axis. false: around the camera's own up axis.
+WorldSpaceYaw=default
+; true: turning your head turns the view.
+; Tracking mode at startup, with PositionEnabled. The mode hotkey changes both.
+RotationEnabled=default
 
-[05. Smoothing]
-# Both values apply to positional tracking only. Rotation is not smoothed by them:
-# the rotation path skips the smoothing stage and relies on the PoseInterpolator,
-# which interpolates between tracker samples to fill in frames.
-# Tracker on this machine (loopback), 0 = none, 1 = heavy
-Local Smoothing = 0.0
-# Tracker on a remote network device, 0 = none, 1 = heavy
-Remote Smoothing = 0.15
+[Smoothing]
+; Smoothing when the tracker runs on this PC. 0 is the least, 1 the most.
+LocalSmoothing=default
+; Smoothing when the tracker is another device on the network, such as a phone.
+; 0 is the least, 1 the most.
+RemoteSmoothing=default
 
-[06. Deadzone]
-# Ignore small movements near center
-Enable Deadzone = false
-# Yaw deadzone in degrees (0-10)
-Yaw Deadzone = 0
-# Pitch deadzone in degrees (0-10)
-Pitch Deadzone = 0
-# Roll deadzone in degrees (0-10)
-Roll Deadzone = 0
+[Position]
+; true: moving your head moves the view.
+; Tracking mode at startup, with RotationEnabled. The mode hotkey changes both.
+PositionEnabled=default
+; How far, in metres, leaning left or right can move the view.
+PositionLimitX=default
+; How far, in metres, raising your head can move the view.
+PositionLimitY=default
+; How far, in metres, lowering your head can move the view.
+PositionLimitYDown=default
+; How far, in metres, leaning forward can move the view.
+PositionLimitZ=default
+; How far, in metres, leaning back can move the view.
+PositionLimitZBack=default
 
-[07. Hotkeys]
-Toggle Tracking = End
-Toggle Position = PageUp
-Yaw Mode Key = PageDown
-# Re-read the config file and restart the UDP listener. Only UDP Port takes
-# effect this way; sensitivity, limits, deadzones and smoothing are read once at
-# startup and need a game restart
-Reload Config = F12
-Toggle Reticle = Insert
+[Hotkeys]
+; Turns head tracking on and off.
+ToggleKey=default
+; Changes the tracking mode: rotation and position, rotation only, position only.
+CycleTrackingModeKey=default
+; Switches yaw between the world's up axis and the camera's own (WorldSpaceYaw).
+YawModeKey=default
+; Reads this file and Defaults.ini again and applies them, without restarting
+; the game.
+ReloadConfigKey=F12
 
-[08. Advanced]
-# Enable detailed debug logging
-Debug Logging = false
-# Target update rate in Hz (30-120)
-Update Rate = 60
-Maintain Relative Position = true
-# Prevents seeing through player model during head bob (0.01-0.5)
-Near Clip Override = 0.15
+[Camera]
+; Metres. While head tracking moves the view, the camera's near clip plane is
+; held at least this far out, so the view does not see through your character's
+; model.
+MinNearClip=0.15
+
+[Logging]
+; true: write the head tracking state to the BepInEx log every 120 frames,
+; at the Debug level.
+DebugLogging=false
 ```
+<!-- /cameraunlock:config -->
 
 ## Troubleshooting
 
@@ -266,11 +301,12 @@ Near Clip Override = 0.15
 - Check firewall isn't blocking UDP port 4242
 
 **A config edit had no effect:**
-- Make sure nothing follows the value on the line. A trailing `# comment` is read as part of the value, the entry falls back to its default, and the game gives no sign of it. `BepInEx/LogOutput.log` records the failed conversion.
+- Make sure nothing follows the value on the line. A comment goes on its own line: a trailing `; comment` is read as part of the value, the setting keeps its default, and `BepInEx/LogOutput.log` names the line and the value it could not read.
+- Edits to `CameraUnlock.ini` take effect at the next start, or when you press `F12`.
 
 **Jittery movement:**
-- For jittery leaning (positional tracking), increase `Remote Smoothing` for a phone or other network device, or `Local Smoothing` for a tracker running on this PC, with nothing after the value on the line. These two values do not affect rotation jitter
-- Enable deadzones in the `[06. Deadzone]` section
+- Increase `RemoteSmoothing` for a phone or other network device, or `LocalSmoothing` for a tracker running on this PC. Both smooth rotation and position
+- Deadzones are set in your tracker app, not in this mod
 - Improve lighting for webcam-based tracking
 
 **Yaw feels wrong when looking up or down at extreme angles:**
@@ -320,7 +356,10 @@ pixi run package
 | `pixi run install` | Build and install to game directory |
 | `pixi run uninstall` | Remove the mod from the game |
 | `pixi run uninstall -- --force` | Remove the mod and BepInEx |
-| `pixi run package` | Create release ZIPs |
+| `pixi run test` | Build and run the tests, the config differential test included |
+| `pixi run package` | Run the tests and create release ZIPs |
+| `pixi run render-config` | Rewrite `config/CameraUnlock.ini` from the config table |
+| `pixi run validate-manifest` | Check the built ZIPs against the launcher manifest contract |
 | `pixi run clean` | Clean build artifacts |
 | `pixi run release` | Version bump, build, tag, and push |
 
