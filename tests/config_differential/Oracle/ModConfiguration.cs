@@ -1,7 +1,5 @@
 using System;
 using BepInEx.Configuration;
-using CameraUnlock.Core.Data;
-using CameraUnlock.Core.Math;
 using UnityEngine;
 
 namespace PeakHeadTracking.Config
@@ -83,11 +81,6 @@ namespace PeakHeadTracking.Config
         public void Initialize(ConfigFile config)
         {
             configFile = config;
-
-            // The frozen legacy reader has already bound every entry below with saving turned
-            // off, so these Bind calls return its entries and write nothing. Saving is turned
-            // back on, and the file written once, as the first Bind used to write it.
-            config.SaveOnConfigSet = true;
 
             // Connection Settings
             UdpPort = config.Bind(
@@ -252,10 +245,12 @@ namespace PeakHeadTracking.Config
             LocalSmoothing = config.Bind(
                 ConfigCategories.SMOOTHING,
                 "Local Smoothing",
-                SmoothingUtils.DefaultLocalSmoothing,
+                0.0f,
                 new ConfigDescription(
                     "Smoothing applied when the tracker runs on this machine (loopback). " +
-                    "0 = no smoothing, 1 = heavy. Covers rotation and position.",
+                    "0 = no smoothing, 1 = heavy. Applies to positional tracking only. " +
+                    "Rotation is not affected: the rotation path skips the smoothing stage, " +
+                    "and rotation smoothness comes from PoseInterpolator instead.",
                     new AcceptableValueRange<float>(0f, 1f)
                 )
             );
@@ -263,10 +258,12 @@ namespace PeakHeadTracking.Config
             RemoteSmoothing = config.Bind(
                 ConfigCategories.SMOOTHING,
                 "Remote Smoothing",
-                SmoothingUtils.DefaultRemoteSmoothing,
+                0.15f,
                 new ConfigDescription(
                     "Smoothing applied when the tracker is a remote device on the network. " +
-                    "0 = no smoothing, 1 = heavy. Covers rotation and position.",
+                    "0 = no smoothing, 1 = heavy. Applies to positional tracking only. " +
+                    "Rotation is not affected: the rotation path skips the smoothing stage, " +
+                    "and rotation smoothness comes from PoseInterpolator instead.",
                     new AcceptableValueRange<float>(0f, 1f)
                 )
             );
@@ -410,28 +407,28 @@ namespace PeakHeadTracking.Config
             PositionLimitX = config.Bind(
                 ConfigCategories.SENSITIVITY,
                 "Position Limit X",
-                PositionSettings.Default.LimitX,
+                0.30f,
                 new ConfigDescription("Maximum lateral displacement in meters", new AcceptableValueRange<float>(0.01f, 0.5f))
             );
 
             PositionLimitY = config.Bind(
                 ConfigCategories.SENSITIVITY,
                 "Position Limit Y",
-                PositionSettings.Default.LimitY,
+                0.20f,
                 new ConfigDescription("Maximum vertical displacement in meters", new AcceptableValueRange<float>(0.01f, 0.5f))
             );
 
             PositionLimitZ = config.Bind(
                 ConfigCategories.SENSITIVITY,
                 "Position Limit Z",
-                PositionSettings.Default.LimitZ,
+                0.40f,
                 new ConfigDescription("Maximum forward displacement in meters", new AcceptableValueRange<float>(0.01f, 0.5f))
             );
 
             PositionLimitZBack = config.Bind(
                 ConfigCategories.SENSITIVITY,
                 "Position Limit Z Back",
-                PositionSettings.Default.LimitZBack,
+                0.10f,
                 new ConfigDescription("Maximum backward displacement in meters. Leaning back is restricted more tightly than leaning forward to stop the camera pulling into the player body.", new AcceptableValueRange<float>(0.01f, 0.5f))
             );
 
@@ -445,7 +442,6 @@ namespace PeakHeadTracking.Config
                     new AcceptableValueRange<float>(0.01f, 0.5f))
             );
 
-            config.Save();
         }
 
         /// <summary>

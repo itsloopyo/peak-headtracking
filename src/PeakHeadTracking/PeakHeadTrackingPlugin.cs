@@ -32,6 +32,7 @@ namespace PeakHeadTracking
         // Core components
         private GameObject trackingManagerObject;
         private Config.ModConfiguration modConfig;
+        private Legacy.LegacyConfig startupConfig;
         private OpenTrackReceiver coreReceiver;
         private TrackingProcessor processor;
         private PoseInterpolator interpolator;
@@ -79,6 +80,7 @@ namespace PeakHeadTracking
         {
             Logger.LogDebug("Initializing configuration...");
 
+            startupConfig = Legacy.LegacyConfigReader.Read(base.Config);
             modConfig = new Config.ModConfiguration();
             modConfig.Initialize(base.Config);
 
@@ -139,21 +141,21 @@ namespace PeakHeadTracking
 
             processor = new TrackingProcessor
             {
-                LocalSmoothing = modConfig.LocalSmoothing.Value,
-                RemoteSmoothing = modConfig.RemoteSmoothing.Value,
+                LocalSmoothing = startupConfig.LocalSmoothing,
+                RemoteSmoothing = startupConfig.RemoteSmoothing,
                 Sensitivity = new SensitivitySettings(
-                    modConfig.YawSensitivity.Value,
-                    modConfig.PitchSensitivity.Value,
-                    modConfig.RollSensitivity.Value,
-                    invertYaw: modConfig.InvertYaw.Value,
-                    invertPitch: modConfig.InvertPitch.Value,
-                    invertRoll: modConfig.InvertRoll.Value
+                    startupConfig.YawSensitivity,
+                    startupConfig.PitchSensitivity,
+                    startupConfig.RollSensitivity,
+                    invertYaw: startupConfig.InvertYaw,
+                    invertPitch: startupConfig.InvertPitch,
+                    invertRoll: startupConfig.InvertRoll
                 ),
-                Deadzone = modConfig.EnableDeadzone.Value
+                Deadzone = startupConfig.EnableDeadzone
                     ? new DeadzoneSettings(
-                        modConfig.DeadzoneYaw.Value,
-                        modConfig.DeadzonePitch.Value,
-                        modConfig.DeadzoneRoll.Value)
+                        startupConfig.DeadzoneYaw,
+                        startupConfig.DeadzonePitch,
+                        startupConfig.DeadzoneRoll)
                     : DeadzoneSettings.None
             };
 
@@ -168,15 +170,15 @@ namespace PeakHeadTracking
             positionProcessor = new PositionProcessor
             {
                 Settings = PositionSettings.Symmetric(
-                    modConfig.PositionSensitivityX.Value,
-                    modConfig.PositionSensitivityY.Value,
-                    modConfig.PositionSensitivityZ.Value,
-                    modConfig.PositionLimitX.Value,
-                    modConfig.PositionLimitY.Value,
-                    modConfig.PositionLimitZ.Value,
-                    modConfig.PositionLimitZBack.Value,
-                    localSmoothing: modConfig.LocalSmoothing.Value,
-                    remoteSmoothing: modConfig.RemoteSmoothing.Value,
+                    startupConfig.PositionSensitivityX,
+                    startupConfig.PositionSensitivityY,
+                    startupConfig.PositionSensitivityZ,
+                    startupConfig.PositionLimitX,
+                    startupConfig.PositionLimitY,
+                    startupConfig.PositionLimitZ,
+                    startupConfig.PositionLimitZBack,
+                    localSmoothing: startupConfig.LocalSmoothing,
+                    remoteSmoothing: startupConfig.RemoteSmoothing,
                     invertX: true, invertY: false, invertZ: false
                 )
             };
@@ -204,11 +206,11 @@ namespace PeakHeadTracking
             Logger.LogDebug("Plugin Start() called");
 
             // Start receiving UDP data if tracking is enabled
-            if (modConfig.TrackingEnabled.Value)
+            if (startupConfig.TrackingEnabled)
             {
-                coreReceiver.Start(modConfig.UdpPort.Value);
+                coreReceiver.Start(startupConfig.UdpPort);
                 cameraController.SetTrackingEnabled(true);
-                Logger.LogInfo($"Head tracking started, listening on UDP port {modConfig.UdpPort.Value}");
+                Logger.LogInfo($"Head tracking started, listening on UDP port {startupConfig.UdpPort}");
             }
             else
             {

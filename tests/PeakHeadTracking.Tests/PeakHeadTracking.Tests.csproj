@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- net48: .NET Framework, the runtime family the mod's net472 build runs on, and one xunit
+         runs on. BepInEx 5's ConfigFile loads here as it does in game. -->
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>PeakHeadTracking.Tests</AssemblyName>
+    <RootNamespace>PeakHeadTracking.Tests</RootNamespace>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\cameraunlock-core\csharp\src\CameraUnlock.Core\CameraUnlock.Core.csproj" />
+  </ItemGroup>
+
+  <!-- The vendored BepInEx and the Unity reference stubs, both put in lib/ by `pixi run setup`.
+       Copied beside the tests so BepInEx's own config code runs in the test host. -->
+  <ItemGroup>
+    <Reference Include="BepInEx">
+      <HintPath>..\..\lib\BepInEx.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>..\..\lib\UnityEngine.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <!-- The units under test are compiled in from the mod's sources: a ProjectReference to the mod
+       would bring the Unity runtime assemblies into the test host. -->
+  <ItemGroup>
+    <Compile Include="..\..\src\PeakHeadTracking\Legacy\*.cs" Link="Legacy\%(Filename)%(Extension)" />
+    <Compile Include="..\config_differential\**\*.cs" Link="config_differential\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\cameraunlock-core\csharp\testing\IniMutations.cs" Link="IniMutations.cs" />
+  </ItemGroup>
+</Project>
