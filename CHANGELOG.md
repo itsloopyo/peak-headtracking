@@ -21,6 +21,7 @@
 - The tracking mode (`Page Up`) is saved as the `RotationEnabled` and `PositionEnabled` pair, so the game starts in the mode you left it in, position only included. Earlier versions saved only whether position was on, and always started with rotation on. The yaw mode (`Page Down`) is saved as `WorldSpaceYaw`, as before.
 - `F12` reads `CameraUnlock.ini` and `Defaults.ini` again and applies every setting, then restarts the UDP listener. In earlier versions it closed the listener for good, so head tracking stopped until the game was restarted.
 - If your `com.cameraunlock.peak.headtracking.cfg` was first written by v1.0.0 to v1.1.1, it holds `Invert Roll = false`, the default those versions shipped. v1.1.2 made `true` the default (79eaef0), and BepInEx kept the value already in your file. That value is not carried over: roll now follows the `true` default, as it does for everyone who installed later, and the log names `Invert Roll=false` as not carried. If tilting your head now tilts the view the wrong way, invert roll in your tracker.
+- `LocalSmoothing` and `RemoteSmoothing` now smooth rotation as well as position (b3e2cca). v1.3.0 applied them to position only. A tracker on another device on the network, such as a phone, now gets `RemoteSmoothing` (0.15 by default) on rotation, where v1.3.0 applied none. Setting `RemoteSmoothing` to 0 gives rotation as v1.3.0 had it, and takes the smoothing off position as well. A tracker on this PC is unchanged at the `LocalSmoothing` default of 0.
 - The `Toggle Reticle` key (`Insert` / `Ctrl+Shift+U`), which v1.3.0 read and never acted on, was wired up after v1.3.0 (b3e2cca). This version removes it again, so, as in v1.3.0, no key turns the crosshair off.
 
 ### Added
@@ -40,22 +41,6 @@
 ### Added
 
 - drop mod-side centring, the tracker app owns the centre
-
-### Fixed
-
-- harden the release catalog pin sync and tag interpolation
-
-## [1.2.1] - 2026-08-18
-
-### Fixed
-
-- migrate to the per-connection smoothing pair
-- match stub member kinds to the shipped Unity assemblies
-
-## [Unreleased]
-
-### Added
-
 - Log the UDP port at startup and a one-shot `Tracker data received` line the
   first time packets arrive, so a "no head tracking" report is answerable from
   `BepInEx/LogOutput.log` alone. The port previously went out at debug level,
@@ -69,11 +54,25 @@
   bind, the CENTER button in Headcam, SteamVR's reset); the mod applies the pose
   it receives as absolute. The `Home` key, the `Ctrl+Shift+T` chord and the
   `Recenter View` config entry are gone.
+
+### Fixed
+
+- harden the release catalog pin sync and tag interpolation
+
+## [1.2.1] - 2026-08-18
+
+### Changed
+
 - Replace the single `Smoothing` config key with `Local Smoothing` (default 0.0) and `Remote Smoothing` (default 0.15), selected per connection from the packet source address. Both apply to positional tracking only; rotation is not smoothed by them, because the rotation path skips the smoothing stage and gets its smoothness from the PoseInterpolator
 - Remove the `Position Smoothing` key: position now uses the connection-selected `Local Smoothing` / `Remote Smoothing` value
 - Remove the hidden 0.15 baseline smoothing floor. `Local Smoothing` 0.0 now adds no
   user smoothing of its own; what is left is the always-on frame interpolation, a flat
   20 ms time constant that keeps a low-rate tracker smooth on a high-refresh display
+
+### Fixed
+
+- migrate to the per-connection smoothing pair
+- match stub member kinds to the shipped Unity assemblies
 
 ## [1.2.0] - 2026-08-03
 
