@@ -41,7 +41,7 @@ Download [Lopari](https://lopari.app), choose **PEAK**, and click
 5. Launch the game
 
 The installer automatically finds your game via Steam registry lookup. If it can't find the game:
-- Set the `PEAK_PATH` environment variable to your game folder, or
+- Set the `PEAK_GAME_PATH` environment variable to your game folder, or
 - Run from command prompt: `install.cmd "D:\Games\PEAK"`
 
 ### Manual Installation
@@ -330,7 +330,7 @@ uninstall.cmd /force
 
 - [.NET SDK](https://dotnet.microsoft.com/download) (any recent version)
 - [pixi](https://pixi.sh) task runner
-- PEAK installed (for Unity/BepInEx DLL references)
+- PEAK installed only for `pixi run install` and the optional `pixi run setup-game` / `pixi run verify-refs` checks. The build uses the vendored BepInEx and core's Unity reference stubs.
 
 ### Build
 
