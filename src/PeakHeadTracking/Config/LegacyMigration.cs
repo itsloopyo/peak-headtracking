@@ -50,11 +50,18 @@ namespace PeakHeadTracking.Config
 
             var dropped = new List<DroppedValue>();
             var poseShaping = new List<PoseShapingValue>();
-            Map(legacy, config, dropped, poseShaping);
-            return exists ? ImportResult.Imported(dropped, poseShaping) : ImportResult.Absent(dropped, poseShaping);
+            LegacyFollowsDefaultsIni follows = Map(legacy, config, dropped, poseShaping);
+            return exists
+                ? ImportResult.Imported(dropped, poseShaping, follows.Concepts)
+                : ImportResult.Absent(dropped, poseShaping, follows.Concepts);
         }
 
-        public static void Map(LegacyConfig legacy, PeakConfig config, ICollection<DroppedValue> dropped,
+        /// <summary>
+        /// Sets every field from the legacy values and returns the rows left to Defaults.ini: each
+        /// global row whose legacy setting holds what the last build shipped (owner rule of
+        /// 2026-09-26).
+        /// </summary>
+        public static LegacyFollowsDefaultsIni Map(LegacyConfig legacy, PeakConfig config, ICollection<DroppedValue> dropped,
             ICollection<PoseShapingValue> poseShaping)
         {
             config.UdpPort = legacy.UdpPort;
@@ -74,10 +81,10 @@ namespace PeakHeadTracking.Config
                 legacy.LocalSmoothing, legacy.RemoteSmoothing,
                 p.InvertX, p.InvertY, p.InvertZ);
 
-            config.ToggleKeyName = KeyList(legacy.ToggleTrackingKey, KeyCode.Y);
-            config.CycleTrackingModeKeyName = KeyList(legacy.TogglePositionKey, KeyCode.G);
-            config.YawModeKeyName = KeyList(legacy.YawModeKey, KeyCode.H);
-            config.ReloadConfigKeyName = KeyList(legacy.ReloadConfigKey, null);
+            config.ToggleKeyName = KeyList(legacy.ToggleTrackingKey, KeyCode.Y, "Toggle Tracking", dropped);
+            config.CycleTrackingModeKeyName = KeyList(legacy.TogglePositionKey, KeyCode.G, "Toggle Position", dropped);
+            config.YawModeKeyName = KeyList(legacy.YawModeKey, KeyCode.H, "Yaw Mode Key", dropped);
+            config.ReloadConfigKeyName = KeyList(legacy.ReloadConfigKey, null, "Reload Config", dropped);
 
             config.MinNearClip = legacy.NearClipOverride;
             config.DebugLogging = legacy.DebugLogging;
@@ -100,29 +107,51 @@ namespace PeakHeadTracking.Config
 
             dropped.Add(new DroppedValue(DropRule.Reticle, LegacyConfigReader.General, "Show Reticle", legacy.ShowReticle ? "true" : "false"));
             dropped.Add(new DroppedValue(DropRule.Reticle, LegacyConfigReader.Hotkeys, "Toggle Reticle", legacy.ToggleReticleKey.ToString()));
+
+            var follows = new LegacyFollowsDefaultsIni();
+            follows.Setting(ConfigConcepts.UdpPort, legacy.UdpPort, Shipped.UdpPort);
+            follows.Setting(ConfigConcepts.EnableOnStartup, legacy.TrackingEnabled, Shipped.TrackingEnabled);
+            follows.Setting(ConfigConcepts.WorldSpaceYaw, legacy.WorldSpaceYaw, Shipped.WorldSpaceYaw);
+            follows.TrackingMode(legacy.PositionEnabled, Shipped.PositionEnabled);
+            follows.Setting(ConfigConcepts.LocalSmoothing, legacy.LocalSmoothing, Shipped.LocalSmoothing);
+            follows.Setting(ConfigConcepts.RemoteSmoothing, legacy.RemoteSmoothing, Shipped.RemoteSmoothing);
+            follows.Setting(ConfigConcepts.PositionLimitX, legacy.PositionLimitX, Shipped.PositionLimitX);
+            follows.Setting(ConfigConcepts.PositionLimitY, legacy.PositionLimitY, Shipped.PositionLimitY);
+            follows.Setting(ConfigConcepts.PositionLimitYDown, legacy.PositionLimitY, Shipped.PositionLimitY);
+            follows.Setting(ConfigConcepts.PositionLimitZ, legacy.PositionLimitZ, Shipped.PositionLimitZ);
+            follows.Setting(ConfigConcepts.PositionLimitZBack, legacy.PositionLimitZBack, Shipped.PositionLimitZBack);
+            // The Ctrl+Shift letter was fixed in code, so a hotkey is unchanged exactly where its key is.
+            follows.Setting(ConfigConcepts.ToggleKey, legacy.ToggleTrackingKey, Shipped.ToggleTrackingKey);
+            follows.Setting(ConfigConcepts.CycleTrackingModeKey, legacy.TogglePositionKey, Shipped.TogglePositionKey);
+            follows.Setting(ConfigConcepts.YawModeKey, legacy.YawModeKey, Shipped.YawModeKey);
+            return follows;
         }
 
         /// <summary>
-        /// A legacy hotkey as a key list: the key the player set, then the Ctrl+Shift letter
-        /// ChordHotkeys polled beside it. KeyCode.None bound nothing. A KeyCode with no name (a
-        /// number BepInEx read into the enum) keeps its number, which the owner cannot write, so
-        /// the import is deferred rather than the key changed.
+        /// A legacy hotkey as a key list: the key the player set, through core's N3 (a Ctrl, Shift
+        /// or Alt key alone unbinds and is logged), then the Ctrl+Shift letter ChordHotkeys polled
+        /// beside it. A KeyCode with no name in core's key list (a number BepInEx read into the
+        /// enum) keeps its text, which the owner cannot write, so the import is deferred rather
+        /// than the key changed.
         /// </summary>
-        private static string KeyList(KeyCode primary, KeyCode? chordLetter)
+        private static string KeyList(KeyCode primary, KeyCode? chordLetter, string legacyKey, ICollection<DroppedValue> dropped)
         {
             var items = new List<string>();
-            if (primary != KeyCode.None) items.Add(KeyName(primary));
-            if (chordLetter.HasValue) items.Add("Ctrl+Shift+" + KeyName(chordLetter.Value));
+            string plain;
+            try
+            {
+                plain = LegacyNormalisations.KeyCodeToBindings((int)primary, LegacyConfigReader.Hotkeys, legacyKey, dropped);
+            }
+            catch (ArgumentException)
+            {
+                plain = primary.ToString();
+            }
+            if (plain.Length > 0) items.Add(plain);
+            if (chordLetter.HasValue)
+            {
+                items.Add(KeyBindings.Format(new[] { new KeyBinding(KeyModifiers.Ctrl | KeyModifiers.Shift, (int)chordLetter.Value) }));
+            }
             return string.Join(", ", items.ToArray());
-        }
-
-        private static string KeyName(KeyCode key)
-        {
-            string text = key.ToString();
-            KeyBinding[] bindings;
-            string error;
-            if (!KeyBindings.TryParse(text, out bindings, out error)) return text;
-            return KeyBindings.Format(bindings);
         }
     }
 }
