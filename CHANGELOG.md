@@ -25,6 +25,7 @@
 - The `Toggle Reticle` key (`Insert` / `Ctrl+Shift+U`), which v1.3.0 read and never acted on, was wired up after v1.3.0 (b3e2cca). This version removes it again, so, as in v1.3.0, no key turns the crosshair off.
 - A setting that the defaults the README shows set to `default` is written as `default` when you never changed it from the default earlier versions used, because `com.cameraunlock.peak.headtracking.cfg` does not hold it or holds that default. It then follows `Defaults.ini`, so it takes the value `Defaults.ini` gives it, or the built-in value where `Defaults.ini` gives none, which can differ from the default earlier versions used. A setting you changed is written with the value imported for it, or as `default` where that value equals its default at that start. This replaces the rule above that compared the imported value with `Defaults.ini` alone, under which an untouched `Position Enabled = true` was written as a value wherever `Defaults.ini` held another tracking mode.
 - A hotkey set to Ctrl, Shift or Alt on its own in `com.cameraunlock.peak.headtracking.cfg` is not carried over. That key goes down before the key of any chord made with it, so the hotkey is left unbound, it keeps its Ctrl+Shift chord, and the log names the key as not carried.
+- A hotkey set to a number that is not a key code Unity names in `com.cameraunlock.peak.headtracking.cfg` (for example `Toggle Position = 2`) is not carried over. The hotkey is left unbound, it keeps its Ctrl+Shift chord where it has one, and the log names the number as not carried.
 
 ### Added
 

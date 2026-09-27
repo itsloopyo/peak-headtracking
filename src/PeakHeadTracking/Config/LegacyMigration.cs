@@ -129,23 +129,14 @@ namespace PeakHeadTracking.Config
 
         /// <summary>
         /// A legacy hotkey as a key list: the key the player set, through core's N3 (a Ctrl, Shift
-        /// or Alt key alone unbinds and is logged), then the Ctrl+Shift letter ChordHotkeys polled
-        /// beside it. A KeyCode with no name in core's key list (a number BepInEx read into the
-        /// enum) keeps its text, which the owner cannot write, so the import is deferred rather
-        /// than the key changed.
+        /// or Alt key alone unbinds and is logged) and N1 (a KeyCode with no name in core's key
+        /// list, a number BepInEx read into the enum, unbinds and is logged), then the Ctrl+Shift
+        /// letter ChordHotkeys polled beside it.
         /// </summary>
         private static string KeyList(KeyCode primary, KeyCode? chordLetter, string legacyKey, ICollection<DroppedValue> dropped)
         {
             var items = new List<string>();
-            string plain;
-            try
-            {
-                plain = LegacyNormalisations.KeyCodeToBindings((int)primary, LegacyConfigReader.Hotkeys, legacyKey, dropped);
-            }
-            catch (ArgumentException)
-            {
-                plain = primary.ToString();
-            }
+            string plain = LegacyNormalisations.KeyCodeToBindings((int)primary, LegacyConfigReader.Hotkeys, legacyKey, dropped);
             if (plain.Length > 0) items.Add(plain);
             if (chordLetter.HasValue)
             {

@@ -4,8 +4,10 @@ using System.IO;
 using System.Linq;
 using CameraUnlock.Core.Config;
 using CameraUnlock.Core.Config.Testing;
+using CameraUnlock.Core.Input;
 using PeakHeadTracking.Config;
 using PeakHeadTracking.Legacy;
+using UnityEngine;
 using Xunit;
 
 namespace PeakHeadTracking.Tests.ConfigDifferential
@@ -42,7 +44,7 @@ namespace PeakHeadTracking.Tests.ConfigDifferential
         public void ComparisonTwo()
         {
             var failures = new List<string>();
-            int migrated = 0, deferred = 0, created = 0, refused = 0;
+            int migrated = 0, created = 0, refused = 0;
             foreach (KeyValuePair<string, byte[]> input in Corpus.Inputs())
             {
                 string where = input.Key + ": ";
@@ -75,40 +77,26 @@ namespace PeakHeadTracking.Tests.ConfigDifferential
                 LegacyMigration.Map(import.Values, expected, dropped, poseShaping);
                 CheckRules(failures, where, import, expected, dropped, poseShaping);
 
-                if (Unwritable(expected) != null)
+                Check(failures, where, m.Loaded.Status == ConfigLoadStatus.Migrated, "status " + m.Loaded.Status + ", not Migrated");
+                if (m.Loaded.Status != ConfigLoadStatus.Migrated) continue;
+                Check(failures, where, SameFields(expected, m.Loaded.Config), Difference(expected, m.Loaded.Config));
+                Check(failures, where, Names(m) == PeakConfigOwner.FileName + ", " + BepInExHost.Guid + ".cfg", "the folder holds " + Names(m));
+                foreach (DroppedValue d in dropped)
                 {
-                    // A hotkey the published build read as a KeyCode with no name: no codec
-                    // writes it and no approved rule covers it, so the owner defers the import and
-                    // the session runs on what it read.
-                    Check(failures, where, m.Loaded.Status == ConfigLoadStatus.Deferred, "status " + m.Loaded.Status + ", not Deferred");
-                    Check(failures, where, m.Loaded.Reason.Contains("cannot be converted"), "reason: " + m.Loaded.Reason);
-                    Check(failures, where, Names(m) == BepInExHost.Guid + ".cfg", "the folder holds " + Names(m));
-                    Check(failures, where, SameFields(expected, m.Loaded.Config), "the deferred session does not run on the import");
-                    deferred++;
+                    string line = m.LegacyPath + ": " + d.Describe();
+                    Check(failures, where, m.Loaded.Log.Contains(line), "the log does not name " + d.Describe());
                 }
-                else
-                {
-                    Check(failures, where, m.Loaded.Status == ConfigLoadStatus.Migrated, "status " + m.Loaded.Status + ", not Migrated");
-                    if (m.Loaded.Status != ConfigLoadStatus.Migrated) continue;
-                    Check(failures, where, SameFields(expected, m.Loaded.Config), Difference(expected, m.Loaded.Config));
-                    Check(failures, where, Names(m) == PeakConfigOwner.FileName + ", " + BepInExHost.Guid + ".cfg", "the folder holds " + Names(m));
-                    foreach (DroppedValue d in dropped)
-                    {
-                        string line = m.LegacyPath + ": " + d.Describe();
-                        Check(failures, where, m.Loaded.Log.Contains(line), "the log does not name " + d.Describe());
-                    }
-                    string lint = Lint(File.ReadAllBytes(m.ConfigPath));
-                    Check(failures, where, lint == null, "the migrated file " + lint);
-                    SecondLoad(failures, where, m);
-                    migrated++;
-                }
+                string lint = Lint(File.ReadAllBytes(m.ConfigPath));
+                Check(failures, where, lint == null, "the migrated file " + lint);
+                SecondLoad(failures, where, m);
+                migrated++;
                 LegacyKept(failures, where, m, input.Value);
             }
 
             Assert.True(failures.Count == 0, string.Join("\n", failures.Take(40).ToArray()));
             Assert.True(migrated > 1000, migrated + " inputs migrated");
             Assert.True(created == 1, created + " inputs were a first start");
-            Assert.True(refused + deferred < migrated / 5, refused + " refused by BepInEx and " + deferred + " deferred, of " + migrated);
+            Assert.True(refused < migrated / 5, refused + " refused by BepInEx, of " + migrated);
         }
 
         /// <summary>
@@ -316,6 +304,30 @@ namespace PeakHeadTracking.Tests.ConfigDifferential
             Assert.Contains(m.LegacyPath + ": " + modifier.Describe(), m.Loaded.Log);
         }
 
+        /// <summary>
+        /// N1: a legacy hotkey on a KeyCode with no name in core's key list (a number BepInEx read
+        /// into the enum) imports as unbound, logged as KeyCodeOutOfRange, and the player keeps the
+        /// Ctrl+Shift chord ChordHotkeys polled beside it.
+        /// </summary>
+        [Fact]
+        public void AKeyCodeWithNoNameUnbindsAndKeepsTheChord()
+        {
+            byte[] edited = Edit(Corpus.FirstRun("v1.3.0"), "Toggle Position", "10");
+            var dropped = new List<DroppedValue>();
+            LegacyFollowsDefaultsIni follows = MapOf(edited, dropped);
+            Assert.DoesNotContain(ConfigConcepts.CycleTrackingModeKey, follows.Concepts);
+            DroppedValue unnamed = dropped.Single(d => d.Rule == DropRule.KeyCodeOutOfRange);
+            Assert.Equal(LegacyConfigReader.Hotkeys, unnamed.Section);
+            Assert.Equal("Toggle Position", unnamed.Key);
+            Assert.Equal("10", unnamed.Value);
+
+            Migration m = Migration.Run(Path.Combine(scratch, "unnamed"), edited, defaults);
+            Assert.Equal(ConfigLoadStatus.Migrated, m.Loaded.Status);
+            Assert.Equal("Ctrl+Shift+G", m.Loaded.Config.CycleTrackingModeKeyName);
+            Assert.Equal("Ctrl+Shift+G", FileRows(m.ConfigPath)["[Hotkeys] CycleTrackingModeKey"]);
+            Assert.Contains(m.LegacyPath + ": " + unnamed.Describe(), m.Loaded.Log);
+        }
+
         private void AssertMigration(string name, byte[] legacy, DefaultsFile other, PeakConfig fresh, string[] changed)
         {
             LegacyReading import = LegacyReading.Import(DifferentialTests.Place(scratch, "import", legacy));
@@ -450,18 +462,34 @@ namespace PeakHeadTracking.Tests.ConfigDifferential
             Check(failures, where, LegacyReading.SameValue(mapped.MinNearClip, l.NearClipOverride), "MinNearClip");
             Check(failures, where, mapped.DebugLogging == l.DebugLogging, "DebugLogging");
 
-            var polled = new Dictionary<string, string>
+            // N3 and N1: a Ctrl, Shift or Alt key alone, and a KeyCode with no name in core's key
+            // list, unbind and are dropped; the Ctrl+Shift letter beside it stays.
+            var expectedDropped = new List<string>();
+            var polled = new[]
             {
-                { "ToggleTracking", mapped.ToggleKeyName },
-                { "CycleTrackingMode", mapped.CycleTrackingModeKeyName },
-                { "YawMode", mapped.YawModeKeyName },
-                { "ReloadConfig", mapped.ReloadConfigKeyName },
+                new object[] { "ToggleTracking", mapped.ToggleKeyName, l.ToggleTrackingKey, (KeyCode?)KeyCode.Y, "Toggle Tracking" },
+                new object[] { "CycleTrackingMode", mapped.CycleTrackingModeKeyName, l.TogglePositionKey, (KeyCode?)KeyCode.G, "Toggle Position" },
+                new object[] { "YawMode", mapped.YawModeKeyName, l.YawModeKey, (KeyCode?)KeyCode.H, "Yaw Mode Key" },
+                new object[] { "ReloadConfig", mapped.ReloadConfigKeyName, l.ReloadConfigKey, null, "Reload Config" },
             };
-            foreach (KeyValuePair<string, string> action in polled)
+            foreach (object[] action in polled)
             {
-                string bindings = Migration.Polled(action.Value);
-                if (bindings == null) continue;
-                Check(failures, where, bindings == import.Hotkeys[action.Key], action.Key + " polls " + bindings + ", the published build " + import.Hotkeys[action.Key]);
+                string name = (string)action[0];
+                KeyCode primary = (KeyCode)action[2];
+                string published = import.Hotkeys[name];
+                if (IsModifier(primary))
+                {
+                    expectedDropped.Add("ModifierKey [" + LegacyConfigReader.Hotkeys + "] " + action[4] + "=" + primary);
+                    published = LegacyReading.Bindings(KeyCode.None, (KeyCode?)action[3]);
+                }
+                else if (primary != KeyCode.None && !KeyBindings.HasName((int)primary))
+                {
+                    expectedDropped.Add("KeyCodeOutOfRange [" + LegacyConfigReader.Hotkeys + "] " + action[4] + "="
+                                        + ((int)primary).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    published = LegacyReading.Bindings(KeyCode.None, (KeyCode?)action[3]);
+                }
+                string bindings = Migration.Polled((string)action[1]);
+                Check(failures, where, bindings == published, name + " polls " + bindings + ", the published build " + import.Hotkeys[name]);
             }
 
             var shipped = new LegacyConfig();
@@ -482,7 +510,6 @@ namespace PeakHeadTracking.Tests.ConfigDifferential
                 Shaping(LegacyConfigReader.Deadzone, "Roll Deadzone", l.DeadzoneRoll, shipped.DeadzoneRoll),
             };
             Check(failures, where, poseShaping.Count == expectedShaping.Length, poseShaping.Count + " pose-shaping values");
-            var expectedDropped = new List<string>();
             foreach (object[] e in expectedShaping)
             {
                 PoseShapingValue v = poseShaping.FirstOrDefault(p => p.Section == (string)e[0] && p.Key == (string)e[1]);
@@ -506,14 +533,9 @@ namespace PeakHeadTracking.Tests.ConfigDifferential
             return new object[] { section, key, value == shipped };
         }
 
-        // The first hotkey list no codec writes, or null.
-        private static string Unwritable(PeakConfig c)
+        private static bool IsModifier(KeyCode code)
         {
-            foreach (string list in new[] { c.ToggleKeyName, c.CycleTrackingModeKeyName, c.YawModeKeyName, c.ReloadConfigKeyName })
-            {
-                if (Migration.Polled(list) == null) return list;
-            }
-            return null;
+            return code >= KeyCode.RightShift && code <= KeyCode.LeftAlt;
         }
 
         private static bool SameFields(PeakConfig a, PeakConfig b)
