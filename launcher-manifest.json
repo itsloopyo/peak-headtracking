@@ -25,6 +25,14 @@
     { "source": "plugins/CameraUnlock.Core.Unity.dll", "target": "BepInEx/plugins/CameraUnlock.Core.Unity.dll" }
   ],
 
+  "config": {
+    "path": "BepInEx/config/CameraUnlock.ini",
+    "anchor": "game_root",
+    "legacy_source": "BepInEx/config/com.cameraunlock.peak.headtracking.cfg",
+    "canonical_since": "1.4.0",
+    "per_game": {}
+  },
+
   "runtime_requirements": [],
   "dependencies": []
 }
