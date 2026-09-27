@@ -21,7 +21,7 @@ files under `assets/` are the one exception, and they have their own section.
 | Mono.Cecil | as shipped in the pack above | MIT | Inside the vendored archive |
 | MonoMod (RuntimeDetour, Utils) | as shipped in the pack above | MIT | Inside the vendored archive |
 | UnityDoorstop, PEAK fork (`winhttp.dll`) | 4.4.1PEAK | LGPL-2.1 | Inside the vendored archive |
-| cameraunlock-core | commit `4a5e7f4d1c37efb9074f7f3651cde8327b64715a` | MIT | Shipped as `CameraUnlock.Core.dll` and `CameraUnlock.Core.Unity.dll` |
+| cameraunlock-core | commit `556aa5de6af7eb8004aa9b8d374086c19b0ab9fc` | MIT | Shipped as `CameraUnlock.Core.dll` and `CameraUnlock.Core.Unity.dll` |
 | OpenTrack | n/a | ISC | Not bundled; UDP wire format interoperability only |
 
 ---
@@ -674,7 +674,7 @@ different copyright holder from this repository's `LICENSE`, so its notice is
 reproduced here in full.
 
 - Upstream: https://github.com/itsloopyo/cameraunlock-core
-- Pinned commit: `4a5e7f4d1c37efb9074f7f3651cde8327b64715a`
+- Pinned commit: `556aa5de6af7eb8004aa9b8d374086c19b0ab9fc`
 
 ```
 MIT License
