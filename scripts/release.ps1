@@ -96,6 +96,8 @@ try {
     exit 1
 }
 
+Assert-ReleaseNotBelowCanonicalSince -RepoRoot $projectDir -Version $Version
+
 $tagName = "v$Version"
 
 # Preconditions are the safety net. There is no further confirmation gate;
