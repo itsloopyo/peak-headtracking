@@ -19,13 +19,15 @@ build = { cmd = "dotnet build src/PeakHeadTracking/PeakHeadTracking.csproj -c Re
 verify-refs = { cmd = "powershell -ExecutionPolicy Bypass -File cameraunlock-core/scripts/verify-assembly-refs.ps1 -GameId peak -BuildDir src/PeakHeadTracking/bin/Release", depends-on = ["build"] }
 # The config differential test (tests/config_differential) holds the frozen legacy import to
 # the newest published build's reader over every input the corpus generates.
-test = { cmd = "dotnet test tests/PeakHeadTracking.Tests/PeakHeadTracking.Tests.csproj -c Release", depends-on = ["build"] }
+test-unit = { cmd = "dotnet test tests/PeakHeadTracking.Tests/PeakHeadTracking.Tests.csproj -c Release --filter FullyQualifiedName!~Differential", depends-on = ["build"] }
+test-differential = { cmd = "dotnet test tests/PeakHeadTracking.Tests/PeakHeadTracking.Tests.csproj -c Release --filter FullyQualifiedName~Differential", depends-on = ["build"] }
+test = { depends-on = ["test-unit", "test-differential"] }
 # Rewrites config/CameraUnlock.ini from the config table after a change to a row, a comment or
 # a default, then the per_game of launcher-manifest.json's config descriptor. The render test
 # compares the two on every `pixi run test`, so the committed file cannot drift from the code.
 render-config = { cmd = "dotnet test tests/PeakHeadTracking.Tests/PeakHeadTracking.Tests.csproj -c Release --filter FullyQualifiedName~RenderTests.CommittedFileIsTheRenderedDefaults && node cameraunlock-core/scripts/encode-seed.mjs", env = { CAMERAUNLOCK_RENDER_CONFIG = "write" }, depends-on = ["build"] }
 install = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1 Release", depends-on = ["build"] }
-package = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/package-release.ps1", depends-on = ["test"] }
+package = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/package-release.ps1", depends-on = ["test-unit"] }
 uninstall = "scripts\\uninstall.cmd"
 clean = "dotnet clean src/PeakHeadTracking/PeakHeadTracking.csproj"
 # Bump vendored mod-loader copies to latest upstream within pinned range.
