@@ -32,6 +32,16 @@
 - `Defaults.ini` is `%AppData%\CameraUnlock\Defaults.ini` on Windows; `$XDG_CONFIG_HOME/CameraUnlock/Defaults.ini` on Linux, or `~/.config/CameraUnlock/Defaults.ini` where `XDG_CONFIG_HOME` is not set, under Wine and Proton too; and `~/Library/Application Support/CameraUnlock/Defaults.ini` on macOS. The mod's log, where it writes one, names the file it read.
 - When the mod starts and finds no `Defaults.ini`, it creates one holding the built-in values, unless Windows runs the game as a packaged app, or the game runs on Linux or macOS without Wine or Proton. The mod never changes `Defaults.ini` after that.
 
+### Fixed
+
+- Head tracking now pauses while the pause menu is open. Earlier versions looked for the pause menu in a way that never found it.
+- In camera-local yaw mode (`Page Down`), tilting your head now rolls the view the same way it does in the default world-locked mode. It rolled the opposite way before.
+- Leaning moves the view relative to your character's body, so a lean goes the same way whichever way your head is turned. It used to follow the head-rotated view.
+- The overlay the game draws at the camera's near clip plane now lines up with the view in camera-local yaw mode, in position-only tracking mode, and while leaning, where it could sit off to one side before.
+- In position-only tracking mode your character's head no longer turns with your real head.
+- The sideways turn head tracking gives your character's head is no longer fed into the game's own smoothing of that head turn, which carried it over from one frame to the next.
+- Smoothing and interpolation run on real time, so the game running at double speed (a run setting) or stopped (the pause menu offline) no longer changes how quickly the view follows your head.
+
 ### Removed
 
 - The key that toggled the reticle (`Insert` / `Ctrl+Shift+U`), and the `Show Reticle` setting. The crosshair and the interaction prompts always follow your aim while head tracking moves the view.

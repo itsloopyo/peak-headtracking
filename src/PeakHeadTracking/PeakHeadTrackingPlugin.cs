@@ -226,16 +226,12 @@ namespace PeakHeadTracking
             // Initialize PoseInterpolator
             interpolator = new PoseInterpolator();
 
-            // Add camera controller component (primary camera control)
-            cameraController = trackingManagerObject.AddComponent<Camera.CameraController>();
-            cameraController.Initialize(coreReceiver, processor, interpolator);
-
             positionProcessor = new PositionProcessor();
             positionInterpolator = new PositionInterpolator();
 
-            // Expose receiver to CameraPatches for zero-latency access
-            Patches.CameraPatches.SetReceiver(coreReceiver);
-            Patches.CameraPatches.SetPositionProcessors(positionProcessor, positionInterpolator);
+            // Add camera controller component (primary camera control)
+            cameraController = trackingManagerObject.AddComponent<Camera.CameraController>();
+            cameraController.Initialize(coreReceiver, processor, interpolator, positionProcessor, positionInterpolator);
 
             // Add hotkey manager component
             hotkeyManager = trackingManagerObject.AddComponent<Input.HotkeyManager>();
@@ -328,9 +324,6 @@ namespace PeakHeadTracking
                 coreReceiver.Dispose();
                 coreReceiver = null;
             }
-
-            // Clear receiver reference from CameraPatches
-            Patches.CameraPatches.SetReceiver(null);
 
             config = null;
 

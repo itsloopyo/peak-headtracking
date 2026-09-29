@@ -1,8 +1,3 @@
-using CameraUnlock.Core.Data;
-using CameraUnlock.Core.Math;
-using CameraUnlock.Core.Processing;
-using CameraUnlock.Core.Protocol;
-using CameraUnlock.Core.Unity.Extensions;
 using CameraUnlock.Core.Unity.Rendering;
 using CameraUnlock.Core.Unity.Tracking;
 using CameraUnlock.Core.Unity.Utilities;
@@ -11,12 +6,10 @@ using UnityEngine;
 namespace PeakHeadTracking.Patches
 {
     /// <summary>
-    /// Head tracking using VIEW MATRIX modification with ZERO-LATENCY design.
+    /// Head tracking using VIEW MATRIX modification.
     ///
-    /// Key design principles for minimum latency:
-    /// 1. CameraController runs the TrackingProcessor pipeline (centering, deadzone, smoothing, sensitivity)
-    /// 2. Pre-processed yaw/pitch/roll are written to volatile fields here
-    /// 3. Render callback reads processed values and applies via ViewMatrixModifier
+    /// CameraController runs the rotation and position pipelines once per frame in LateUpdate
+    /// and publishes the result here; the render callback applies it via ViewMatrixModifier.
     ///
     /// This ONLY affects rendering - game logic (aiming, movement, reticle) remains unchanged.
     /// The camera transform is NEVER modified - only worldToCameraMatrix is changed.
@@ -35,12 +28,6 @@ namespace PeakHeadTracking.Patches
         /// </summary>
         internal static UnityEngine.Camera MainCamera => mainCameraCache.Get();
 
-        // Core receiver reference - set by plugin during initialization
-        private static OpenTrackReceiver receiver;
-
-        // Position processing
-        private static PositionProcessor positionProcessor;
-        private static PositionInterpolator positionInterpolator;
         private static bool positionEnabled;
 
         // Yaw mode: true = world-space (horizon-locked), false = camera-local
@@ -50,25 +37,13 @@ namespace PeakHeadTracking.Patches
         private static float minNearClip;
         private static float storedNearClipPlane;
 
-        /// <summary>
-        /// Set the core receiver reference for zero-latency access.
-        /// </summary>
-        public static void SetReceiver(OpenTrackReceiver coreReceiver)
-        {
-            receiver = coreReceiver;
-        }
-
-        public static void SetPositionProcessors(PositionProcessor posProccesor, PositionInterpolator posInterp)
-        {
-            positionProcessor = posProccesor;
-            positionInterpolator = posInterp;
-        }
-
         /// <summary>Enable or disable positional head tracking. Rotation is gated separately.</summary>
         public static void SetPositionEnabled(bool enabled)
         {
             positionEnabled = enabled;
         }
+
+        internal static bool PositionEnabled => positionEnabled;
 
         public static void SetNearClip(float minimum)
         {
@@ -80,24 +55,18 @@ namespace PeakHeadTracking.Patches
             worldSpaceYaw = worldSpace;
         }
 
-        // Processed values after the full pipeline (for compatibility)
-        private static float currentYaw = 0f;
-        private static float currentPitch = 0f;
-
         private static bool headTrackingEnabled = false;
         private static bool rotationEnabled;
         private static bool hasLoggedFirstApplication = false;
 
-        // Pre-processed rotation values - written by CameraController after TrackingProcessor pipeline
-        private static volatile float processedYaw = 0f;
-        private static volatile float processedPitch = 0f;
-        private static volatile float processedRoll = 0f;
+        // Written by CameraController.LateUpdate, zero on any channel the tracking mode has off.
+        private static float processedYaw = 0f;
+        private static float processedPitch = 0f;
+        private static float processedRoll = 0f;
 
-        // Position offset (view space, X=right Y=up Z=forward) the render applied to the view
-        // matrix this frame; published so CameraQuadPatches can mirror it onto the fog quad.
-        private static volatile float processedPosX = 0f;
-        private static volatile float processedPosY = 0f;
-        private static volatile float processedPosZ = 0f;
+        // Position offset in the processor's view-space convention (X=right, Y=up, negative Z
+        // is the forward lean), relative to the clean camera.
+        private static Vector3 processedPosition = Vector3.zero;
 
         // Callback state - now managed by RenderPipelineHelper
         private static bool callbackRegistered = false;
@@ -110,24 +79,18 @@ namespace PeakHeadTracking.Patches
         private static int lastDiagnosticFrame = -1;
         private const int DiagnosticLogInterval = 300; // Log every 300 frames (~5 seconds at 60fps)
 
-        /// <summary>
-        /// Current processed head tracking angles (degrees).
-        /// </summary>
-        public static float CurrentYaw => currentYaw;
-        public static float CurrentPitch => currentPitch;
-
-        /// <summary>
-        /// Expose processed rotation for CameraQuadPatches to apply scoped transform modification.
-        /// </summary>
         internal static float ProcessedYaw => processedYaw;
         internal static float ProcessedPitch => processedPitch;
         internal static float ProcessedRoll => processedRoll;
+        internal static Vector3 ProcessedPositionOffset => processedPosition;
+        internal static bool WorldSpaceYaw => worldSpaceYaw;
 
         /// <summary>
-        /// The 6DOF position offset (view space: X=right, Y=up, Z=forward) the render applied
-        /// to the view matrix on the last frame, or zero when position tracking is inactive.
+        /// Whether the render has anything to apply. A tracker that has sent nothing yields an
+        /// exact zero pose, and the render then leaves the camera, near clip included, alone.
         /// </summary>
-        internal static Vector3 ProcessedPositionOffset => new Vector3(processedPosX, processedPosY, processedPosZ);
+        internal static bool HasPoseToApply =>
+            processedYaw != 0f || processedPitch != 0f || processedRoll != 0f || processedPosition != Vector3.zero;
 
         /// <summary>
         /// The near clip plane the render enforces for a given base value (it never lowers the
@@ -140,27 +103,15 @@ namespace PeakHeadTracking.Patches
         }
 
         /// <summary>
-        /// Legacy method for compatibility - stores processed values for UI display
+        /// Publish this frame's processed pose. Called from CameraController.LateUpdate, which
+        /// zeroes the channels the tracking mode has off.
         /// </summary>
-        public static void SetHeadTrackingInput(float yaw, float pitch)
-        {
-            currentYaw = yaw;
-            currentPitch = pitch;
-        }
-
-        /// <summary>
-        /// Write pre-processed rotation values from the TrackingProcessor pipeline.
-        /// Called from CameraController.LateUpdate() after running the full pipeline.
-        /// </summary>
-        public static void SetProcessedRotation(float yaw, float pitch, float roll)
+        public static void SetProcessedPose(float yaw, float pitch, float roll, Vector3 position)
         {
             processedYaw = yaw;
             processedPitch = pitch;
             processedRoll = roll;
-
-            // Update currentYaw/Pitch for any code that reads them
-            currentYaw = yaw;
-            currentPitch = pitch;
+            processedPosition = position;
         }
 
         /// <summary>
@@ -170,6 +121,8 @@ namespace PeakHeadTracking.Patches
         {
             rotationEnabled = enabled;
         }
+
+        internal static bool RotationEnabled => rotationEnabled;
 
         /// <summary>
         /// Enable or disable head tracking
@@ -185,7 +138,7 @@ namespace PeakHeadTracking.Patches
 
             if (!enabled)
             {
-                // Reset reticle to center when tracking disabled
+                SetProcessedPose(0f, 0f, 0f, Vector3.zero);
                 ReticleCompensation.ResetReticlePosition();
             }
         }
@@ -225,19 +178,28 @@ namespace PeakHeadTracking.Patches
         }
 
         /// <summary>
-        /// Get current head tracking input
-        /// </summary>
-        public static Vector2 GetHeadTrackingInput()
-        {
-            return new Vector2(currentYaw, currentPitch);
-        }
-
-        /// <summary>
         /// Check if head tracking is enabled
         /// </summary>
         public static bool IsHeadTrackingEnabled()
         {
             return headTrackingEnabled;
+        }
+
+        /// <summary>
+        /// The camera rotation the render draws from, for passes that read the transform
+        /// instead of the view matrix. Mirrors the two ViewMatrixModifier calls in OnPreRender.
+        /// </summary>
+        internal static Quaternion ComposeTrackedRotation(Quaternion clean, float yaw, float pitch, float roll)
+        {
+            if (worldSpaceYaw)
+            {
+                return Quaternion.AngleAxis(yaw, Vector3.up) * clean * Quaternion.Euler(-pitch, 0f, -roll);
+            }
+
+            // ApplyHeadRotation rotates view space, which Unity flips in z relative to the
+            // transform: the same rotation seen from the transform keeps x and y and negates z.
+            Quaternion view = Quaternion.Euler(-pitch, yaw, roll);
+            return clean * new Quaternion(view.x, view.y, -view.z, view.w);
         }
 
         /// <summary>
@@ -261,13 +223,6 @@ namespace PeakHeadTracking.Patches
             if (!headTrackingEnabled)
                 return;
 
-            // Require receiver to be set
-            if (receiver == null)
-            {
-                LogDiagnostic("[HeadTracking] ERROR: Receiver is null - tracking disabled");
-                return;
-            }
-
             // Don't apply head tracking during loading/splash screens or when not in gameplay
             if (GameplayStateDetection.ShouldSkipHeadTracking())
             {
@@ -276,74 +231,31 @@ namespace PeakHeadTracking.Patches
                 return;
             }
 
-            // READ pre-processed values from volatile fields
-            // These are written by CameraController.LateUpdate() after the TrackingProcessor pipeline
+            if (!HasPoseToApply)
+                return;
+
             float yaw = processedYaw;
             float pitch = processedPitch;
             float roll = processedRoll;
 
-            bool hasRotMovement = Mathf.Abs(yaw) >= TrackingConstants.MovementThreshold ||
-                                  Mathf.Abs(pitch) >= TrackingConstants.MovementThreshold ||
-                                  Mathf.Abs(roll) >= TrackingConstants.MovementThreshold;
-            bool positionActive = positionProcessor != null && positionEnabled && receiver != null;
-            bool applyRotation = rotationEnabled && hasRotMovement;
-
-            if (!applyRotation && !positionActive)
-                return;
-
-            // Apply rotation via view matrix.
             // World-space (default): yaw rotates around world up, pitch/roll camera-local
             //   - looking down + yawing still pans across the floor (horizon-stable).
             // Camera-local: all three axes composed and applied in camera space
             //   - yaw at extreme pitches rolls/leans the view.
-            // This modifies worldToCameraMatrix WITHOUT touching camera.transform,
-            // so cam.transform.forward (the game's aim direction) is unchanged in both modes.
-            if (applyRotation)
+            // Both take the same -roll: ApplyHeadRotation negates roll in view space, which is
+            // the same camera roll as the unnegated roll ApplyHeadRotationDecomposed applies.
+            // The position offset is applied in the clean camera's frame, so a lean follows
+            // the body rather than the head-rotated view.
+            // cam.transform.forward (the game's aim direction) is unchanged in both modes.
+            if (worldSpaceYaw)
             {
-                if (worldSpaceYaw)
-                {
-                    // ApplyHeadRotationDecomposed does not invert roll internally,
-                    // so pass -roll to match the camera-local branch's sign convention.
-                    ViewMatrixModifier.ApplyHeadRotationDecomposed(cam, yaw, -pitch, -roll);
-                }
-                else
-                {
-                    ViewMatrixModifier.ApplyHeadRotation(cam, yaw, -pitch, roll);
-                }
-                matrixModifiedThisFrame = true;
-            }
-
-            // Apply position offset in camera space via matrix translation
-            if (positionActive)
-            {
-                if (!matrixModifiedThisFrame)
-                {
-                    cam.ResetWorldToCameraMatrix();
-                }
-
-                // Locality picks LocalSmoothing vs RemoteSmoothing. Re-read every frame
-                // so swapping a local tracker for a remote device switches parameter
-                // without restarting the game.
-                positionProcessor.IsRemoteConnection = receiver.IsRemoteConnection;
-
-                var rawPos = receiver.GetLatestPosition();
-                var interpolatedPos = positionInterpolator.Update(rawPos, Time.deltaTime);
-                var headRotQ = QuaternionUtils.FromYawPitchRoll(yaw, -pitch, roll);
-                Vec3 posOffset = positionProcessor.Process(interpolatedPos, headRotQ, Time.deltaTime);
-                Vector3 posOffsetUnity = posOffset.ToUnity();
-                processedPosX = posOffsetUnity.x;
-                processedPosY = posOffsetUnity.y;
-                processedPosZ = posOffsetUnity.z;
-                // Translate in camera space: pre-multiply with translation matrix
-                cam.worldToCameraMatrix = Matrix4x4.Translate(-posOffsetUnity) * cam.worldToCameraMatrix;
-                matrixModifiedThisFrame = true;
+                ViewMatrixModifier.ApplyHeadRotationDecomposed(cam, yaw, -pitch, -roll, processedPosition);
             }
             else
             {
-                processedPosX = 0f;
-                processedPosY = 0f;
-                processedPosZ = 0f;
+                ViewMatrixModifier.ApplyHeadRotation(cam, yaw, -pitch, -roll, processedPosition);
             }
+            matrixModifiedThisFrame = true;
 
             // Store and override near clip plane
             storedNearClipPlane = cam.nearClipPlane;
@@ -365,7 +277,7 @@ namespace PeakHeadTracking.Patches
 
             if (!hasLoggedFirstApplication)
             {
-                PeakHeadTrackingPlugin.Logger?.LogInfo($"[ApplyHeadTracking] SUCCESS! Applied via ViewMatrixModifier: Yaw={yaw:F2}, Pitch={pitch:F2}, Roll={roll:F2}");
+                PeakHeadTrackingPlugin.Logger?.LogInfo($"[ApplyHeadTracking] SUCCESS! Applied via ViewMatrixModifier: Yaw={yaw:F2}, Pitch={pitch:F2}, Roll={roll:F2}, Position={processedPosition}");
                 hasLoggedFirstApplication = true;
             }
         }

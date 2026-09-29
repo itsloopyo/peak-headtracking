@@ -42,6 +42,15 @@ namespace PeakHeadTracking.Patches
         // For debugging
         private static bool hasLoggedSuccess = false;
 
+        // The game writes Look X through the damped SetFloat, which moves the parameter's
+        // current value toward the mouse input. Left in place, the offset added here would be
+        // damped forward and added again every frame, so the prefix hands the game back its
+        // own value first. Look Y is written undamped each frame and needs no restore.
+        private static bool lookXApplied = false;
+        private static object lookXCharacter;
+        private static Animator lookXAnimator;
+        private static float cleanLookX;
+
         /// <summary>
         /// Target the CharacterAnimations.Update method
         /// </summary>
@@ -144,6 +153,23 @@ namespace PeakHeadTracking.Patches
 
 
         /// <summary>
+        /// Prefix that restores the Look X value the game set last frame, before
+        /// CharacterAnimations.Update damps it again.
+        /// </summary>
+        [HarmonyPrefix]
+        public static void Prefix(object __instance)
+        {
+            if (!lookXApplied) return;
+            if (!ReferenceEquals(getCharacterFromAnimations(__instance), lookXCharacter)) return;
+
+            lookXApplied = false;
+            if (lookXAnimator != null)
+            {
+                lookXAnimator.SetFloat(AN_LOOK_X, cleanLookX);
+            }
+        }
+
+        /// <summary>
         /// Postfix that runs AFTER CharacterAnimations.Update sets the Look X/Y animator parameters.
         /// Adds head tracking offset to turn the character's head.
         /// </summary>
@@ -156,12 +182,11 @@ namespace PeakHeadTracking.Patches
             // Check if head tracking is enabled
             if (!CameraPatches.IsHeadTrackingEnabled()) return;
 
-            // Get head tracking offset (in degrees)
-            float yaw = CameraPatches.CurrentYaw;
-            float pitch = CameraPatches.CurrentPitch;
+            // Get head tracking offset (in degrees), zero when the tracking mode has rotation off
+            float yaw = CameraPatches.ProcessedYaw;
+            float pitch = CameraPatches.ProcessedPitch;
 
-            // Skip if no significant head movement
-            if (Mathf.Abs(yaw) < TrackingConstants.MovementThreshold && Mathf.Abs(pitch) < TrackingConstants.MovementThreshold) return;
+            if (yaw == 0f && pitch == 0f) return;
 
             // Get the character from this CharacterAnimations instance (compiled delegate)
             object animCharacter = getCharacterFromAnimations(__instance);
@@ -197,6 +222,11 @@ namespace PeakHeadTracking.Patches
             // Set the modified values (without smoothing to get immediate response)
             animator.SetFloat(AN_LOOK_X, newLookX);
             animator.SetFloat(AN_LOOK_Y, newLookY);
+
+            cleanLookX = currentLookX;
+            lookXCharacter = localCharacter;
+            lookXAnimator = animator;
+            lookXApplied = true;
 
             if (!hasLoggedSuccess)
             {

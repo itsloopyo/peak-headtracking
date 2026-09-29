@@ -1,6 +1,5 @@
 using System;
 using System.Reflection;
-using CameraUnlock.Core.Unity.Tracking;
 using HarmonyLib;
 using UnityEngine;
 
@@ -78,13 +77,12 @@ namespace PeakHeadTracking.Patches
             if (GameplayStateDetection.ShouldSkipHeadTracking())
                 return;
 
+            if (!CameraPatches.HasPoseToApply)
+                return;
+
             UnityEngine.Camera cam = CameraPatches.MainCamera;
             if (cam == null)
                 return;
-
-            float yaw = CameraPatches.ProcessedYaw;
-            float pitch = CameraPatches.ProcessedPitch;
-            float roll = CameraPatches.ProcessedRoll;
 
             storedRotation = cam.transform.rotation;
             storedPosition = cam.transform.position;
@@ -93,19 +91,18 @@ namespace PeakHeadTracking.Patches
 
             // Reproduce the camera pose the render injects into the view matrix.
             //
-            // Rotation: world-space-yaw composition with -roll. Both render paths apply -roll
-            //   (ApplyHeadRotationDecomposed is called with -roll; ApplyHeadRotation negates roll
-            //   internally), so passing raw +roll would tilt the quad opposite to the view.
-            // Position (6DOF): the render translates the rotated view matrix by -posOffset in view
-            //   space. The equivalent camera world position is camPos + finalRot * (ox, oy, -oz);
-            //   the -oz is Unity's view-space Z flip. Without this the near quad (~0.16m away) stays
-            //   put while the view leans, throwing the overlay badly off-centre.
-            // Near clip: the render forces nearClip >= NearClipOverride. CameraQuad puts the quad at
+            // Rotation: the same composition as the render, in whichever yaw mode is active.
+            // Position (6DOF): the render moves the eye by the offset in the clean camera's frame,
+            //   so the camera world position is camPos + cleanRot * (ox, oy, -oz); the -oz is
+            //   Unity's view-space Z flip. Without this the near quad (~0.16m away) stays put
+            //   while the view leans, throwing the overlay badly off-centre.
+            // Near clip: the render forces nearClip >= MinNearClip. CameraQuad puts the quad at
             //   nearClip + 0.01, so it must build against the same plane or the render's larger near
             //   plane clips the quad away entirely.
-            Quaternion finalRot = CameraRotationComposer.ComposeAdditive(storedRotation, yaw, pitch, -roll);
+            Quaternion finalRot = CameraPatches.ComposeTrackedRotation(
+                storedRotation, CameraPatches.ProcessedYaw, CameraPatches.ProcessedPitch, CameraPatches.ProcessedRoll);
             Vector3 o = CameraPatches.ProcessedPositionOffset;
-            Vector3 worldPosDelta = finalRot * new Vector3(o.x, o.y, -o.z);
+            Vector3 worldPosDelta = storedRotation * new Vector3(o.x, o.y, -o.z);
 
             cam.transform.rotation = finalRot;
             cam.transform.position = storedPosition + worldPosDelta;

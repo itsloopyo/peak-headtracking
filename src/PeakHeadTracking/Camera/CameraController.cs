@@ -1,18 +1,17 @@
-using System;
-using System.Collections;
-using UnityEngine;
-using UnityEngine.SceneManagement;
+using CameraUnlock.Core.Data;
+using CameraUnlock.Core.Math;
 using CameraUnlock.Core.Processing;
 using CameraUnlock.Core.Protocol;
-using CameraUnlock.Core.Unity.Tracking;
+using CameraUnlock.Core.Unity.Extensions;
+using UnityEngine;
 
 namespace PeakHeadTracking.Camera
 {
     /// <summary>
-    /// Controls camera rotation based on head tracking data.
-    /// Owns the TrackingProcessor pipeline: raw pose -> interpolate -> process -> CameraPatches.
-    /// CameraPatches handles the actual rotation application via render callbacks.
-    /// ExecutionOrder 1000 ensures this runs AFTER MainCameraMovement (500)
+    /// Owns the tracking pipelines: raw pose -> interpolate -> process -> CameraPatches, once
+    /// per frame. CameraPatches applies the result via render callbacks.
+    /// ExecutionOrder 1000 runs this after MainCameraMovement (500) and before CameraQuad
+    /// (100000), which mirrors this frame's pose onto the fog quad.
     /// </summary>
     [DefaultExecutionOrder(1000)]
     public class CameraController : MonoBehaviour
@@ -20,129 +19,25 @@ namespace PeakHeadTracking.Camera
         private OpenTrackReceiver coreReceiver;
         private TrackingProcessor processor;
         private PoseInterpolator interpolator;
+        private PositionProcessor positionProcessor;
+        private PositionInterpolator positionInterpolator;
 
         private const int DebugLogIntervalFrames = 120;
 
-        // Camera references
-        private UnityEngine.Camera mainCamera;
-        private Transform cameraTransform;
-
-        // Camera finding state
-        private const float CAMERA_SEARCH_INTERVAL_SECONDS = 1.0f;
-        private int cameraSearchAttempts = 0;
-        private const int MAX_CAMERA_SEARCH_ATTEMPTS = 10;
-
         // Tracking state
         private bool isTrackingActive = false;
-        private bool isInitialized = false;
         private bool hasLoggedFirstPacket = false;
 
-        /// <summary>
-        /// Initialize the camera controller
-        /// </summary>
-        public void Initialize(OpenTrackReceiver trackReceiver, TrackingProcessor trackingProcessor, PoseInterpolator poseInterpolator)
+        public void Initialize(OpenTrackReceiver trackReceiver, TrackingProcessor trackingProcessor, PoseInterpolator poseInterpolator,
+            PositionProcessor posProcessor, PositionInterpolator posInterpolator)
         {
             coreReceiver = trackReceiver;
             processor = trackingProcessor;
             interpolator = poseInterpolator;
+            positionProcessor = posProcessor;
+            positionInterpolator = posInterpolator;
 
-            isInitialized = true;
             PeakHeadTrackingPlugin.Logger.LogDebug("CameraController initialized");
-        }
-
-        /// <summary>
-        /// Unity Start - find camera references
-        /// </summary>
-        private void Start()
-        {
-            if (!isInitialized)
-            {
-                PeakHeadTrackingPlugin.Logger.LogWarning("CameraController started without initialization");
-                return;
-            }
-
-            // Subscribe to scene changes to re-find camera
-            SceneManager.sceneLoaded += OnSceneLoaded;
-
-            StartCoroutine(FindCameraCoroutine());
-        }
-
-        /// <summary>
-        /// Handle scene load - re-find camera in new scene
-        /// </summary>
-        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-        {
-            PeakHeadTrackingPlugin.Logger.LogInfo($"Scene loaded: {scene.name} - re-finding camera");
-
-            // Reset camera state
-            mainCamera = null;
-            cameraTransform = null;
-            cameraSearchAttempts = 0;
-
-            // Start searching for camera in new scene
-            StartCoroutine(FindCameraCoroutine());
-        }
-
-        /// <summary>
-        /// Coroutine to find and attach to camera
-        /// </summary>
-        private IEnumerator FindCameraCoroutine()
-        {
-            while (mainCamera == null && cameraSearchAttempts < MAX_CAMERA_SEARCH_ATTEMPTS)
-            {
-                FindMainCamera();
-
-                if (mainCamera == null)
-                {
-                    cameraSearchAttempts++;
-                    PeakHeadTrackingPlugin.Logger.LogDebug($"Camera search attempt {cameraSearchAttempts}/{MAX_CAMERA_SEARCH_ATTEMPTS}");
-                    yield return new WaitForSeconds(CAMERA_SEARCH_INTERVAL_SECONDS);
-                }
-            }
-
-            if (mainCamera == null)
-            {
-                PeakHeadTrackingPlugin.Logger.LogError("Failed to find camera after maximum attempts");
-            }
-        }
-
-        /// <summary>
-        /// Find and cache the main camera
-        /// </summary>
-        private void FindMainCamera()
-        {
-            // Try multiple methods to find the camera
-            mainCamera = UnityEngine.Camera.main;
-
-            if (mainCamera == null)
-            {
-                // Try finding by tag
-                GameObject camObj = GameObject.FindWithTag("MainCamera");
-                if (camObj != null)
-                {
-                    mainCamera = camObj.GetComponent<UnityEngine.Camera>();
-                }
-            }
-
-            if (mainCamera == null)
-            {
-                // Try finding any active camera
-                UnityEngine.Camera[] cameras = FindObjectsByType<UnityEngine.Camera>(FindObjectsSortMode.None);
-                foreach (var cam in cameras)
-                {
-                    if (cam.enabled && cam.gameObject.activeInHierarchy)
-                    {
-                        mainCamera = cam;
-                        break;
-                    }
-                }
-            }
-
-            if (mainCamera != null)
-            {
-                cameraTransform = mainCamera.transform;
-                PeakHeadTrackingPlugin.Logger.LogInfo($"Attached to camera: {mainCamera.name}");
-            }
         }
 
         /// <summary>
@@ -153,30 +48,39 @@ namespace PeakHeadTracking.Camera
             // Latched once: the only line in the log that proves tracker packets
             // reached the game. Outside the isTrackingActive gate so a user who
             // started with tracking toggled off can still see the tracker arrive.
-            if (coreReceiver != null && !hasLoggedFirstPacket && coreReceiver.IsReceiving)
+            if (!hasLoggedFirstPacket && coreReceiver.IsReceiving)
             {
                 hasLoggedFirstPacket = true;
                 PeakHeadTrackingPlugin.Logger.LogInfo(
                     $"Tracker data received ({(coreReceiver.IsRemoteConnection ? "remote" : "local")} source)");
             }
 
-            if (coreReceiver != null && isTrackingActive)
+            if (isTrackingActive)
             {
-                // Get raw pose from receiver
-                var rawPose = coreReceiver.GetLatestPose();
-
-                // Run through interpolation (fills 60Hz→240Hz gaps with linear lerp)
-                var interpolated = interpolator.Update(rawPose, Time.deltaTime);
+                // Real time, not game time: PEAK runs at timeScale 2 under a run setting and at
+                // 0 while paused offline, and the head moves at the same speed either way.
+                float dt = Time.unscaledDeltaTime;
 
                 // Locality picks LocalSmoothing vs RemoteSmoothing. Re-read every
                 // frame so swapping between a local tracker and a phone on the
                 // network takes effect without a restart.
-                processor.IsRemoteConnection = coreReceiver.IsRemoteConnection;
+                bool remote = coreReceiver.IsRemoteConnection;
+                processor.IsRemoteConnection = remote;
+                positionProcessor.IsRemoteConnection = remote;
 
-                var processed = processor.Process(interpolated, Time.deltaTime);
+                var interpolated = interpolator.Update(coreReceiver.GetLatestPose(), dt);
+                var processed = processor.Process(interpolated, dt);
 
-                // Write processed values to CameraPatches
-                Patches.CameraPatches.SetProcessedRotation(processed.Yaw, processed.Pitch, processed.Roll);
+                var interpolatedPos = positionInterpolator.Update(coreReceiver.GetLatestPosition(), dt);
+                Quat4 headRotQ = QuaternionUtils.FromYawPitchRoll(processed.Yaw, -processed.Pitch, processed.Roll);
+                Vec3 position = positionProcessor.Process(interpolatedPos, headRotQ, dt);
+
+                bool rotation = Patches.CameraPatches.RotationEnabled;
+                Patches.CameraPatches.SetProcessedPose(
+                    rotation ? processed.Yaw : 0f,
+                    rotation ? processed.Pitch : 0f,
+                    rotation ? processed.Roll : 0f,
+                    Patches.CameraPatches.PositionEnabled ? position.ToUnity() : Vector3.zero);
             }
 
             if (DebugLogging && Time.frameCount % DebugLogIntervalFrames == 0)
@@ -188,8 +92,10 @@ namespace PeakHeadTracking.Camera
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
         private void LogDebugState()
         {
-            Vector2 headTracking = Patches.CameraPatches.GetHeadTrackingInput();
-            PeakHeadTrackingPlugin.Logger?.LogDebug($"[CameraController] isTrackingActive={isTrackingActive}, headTracking=({headTracking.x:F1}, {headTracking.y:F1})");
+            PeakHeadTrackingPlugin.Logger.LogDebug(
+                $"[CameraController] isTrackingActive={isTrackingActive}, yaw={Patches.CameraPatches.ProcessedYaw:F1}, " +
+                $"pitch={Patches.CameraPatches.ProcessedPitch:F1}, roll={Patches.CameraPatches.ProcessedRoll:F1}, " +
+                $"position={Patches.CameraPatches.ProcessedPositionOffset}");
         }
 
         /// <summary>
@@ -199,26 +105,16 @@ namespace PeakHeadTracking.Camera
         {
             isTrackingActive = enabled;
 
-            // Enable/disable the view matrix modification
-            Patches.CameraPatches.SetHeadTrackingEnabled(enabled);
-
-            if (!enabled)
-            {
-                // Clear head tracking input
-                Patches.CameraPatches.SetHeadTrackingInput(0, 0);
-
-                // Reset view matrix to auto-calculated mode
-                if (mainCamera != null)
-                {
-                    ViewMatrixModifier.Reset(mainCamera);
-                }
-            }
-            else
+            if (enabled)
             {
                 // Reset processing pipeline for clean start
                 processor.ResetSmoothing();
                 interpolator.Reset();
+                positionProcessor.ResetSmoothing();
+                positionInterpolator.Reset();
             }
+
+            Patches.CameraPatches.SetHeadTrackingEnabled(enabled);
 
             PeakHeadTrackingPlugin.Logger.LogInfo($"Tracking {(enabled ? "enabled" : "disabled")}");
         }
@@ -228,25 +124,5 @@ namespace PeakHeadTracking.Camera
 
         /// <summary>Whether head tracking is on this session, which End toggles.</summary>
         public bool IsTrackingEnabled => isTrackingActive;
-
-        /// <summary>
-        /// Get current tracking state
-        /// </summary>
-        public bool IsTrackingActive => isTrackingActive && coreReceiver != null && coreReceiver.IsReceiving;
-
-        private void OnDestroy()
-        {
-            // Unsubscribe from scene events
-            SceneManager.sceneLoaded -= OnSceneLoaded;
-
-            // Unregister camera callback
-            Patches.CameraPatches.UnregisterCameraCallback();
-
-            // Reset view matrix to auto-calculated mode
-            if (mainCamera != null)
-            {
-                ViewMatrixModifier.Reset(mainCamera);
-            }
-        }
     }
 }

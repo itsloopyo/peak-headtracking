@@ -36,15 +36,9 @@ namespace PeakHeadTracking.Patches
         private static bool interactElementsFound = false;
         private static bool interactElementsSearched = false;
 
-        /// <summary>
-        /// Exposes the GUIManager Type for GameplayStateDetection to check pause menu.
-        /// </summary>
-        internal static Type GUIManagerType => guiManagerType;
-
-        /// <summary>
-        /// Exposes the GUIManager instance FieldInfo for GameplayStateDetection.
-        /// </summary>
-        internal static FieldInfo GUIManagerInstanceField => instanceField;
+        // Whether the reticle and interact elements currently hold a non-zero offset, so the
+        // reset outside gameplay writes them once rather than every frame.
+        private static bool offsetApplied = false;
 
         /// <summary>
         /// Initialize reticle reflection for compensation
@@ -217,6 +211,7 @@ namespace PeakHeadTracking.Patches
 
             Vector2 offset = CanvasCompensation.CalculateAimScreenOffset(cam, aimDir, cachedCanvasScaleFactor);
             reticleParentTransform.anchoredPosition = offset;
+            offsetApplied = true;
 
             // Move interaction text elements to follow the reticle
             FindInteractElements();
@@ -234,6 +229,9 @@ namespace PeakHeadTracking.Patches
         /// </summary>
         public static void ResetReticlePosition()
         {
+            if (!offsetApplied) return;
+            offsetApplied = false;
+
             if (reticleParentFound && reticleParentTransform != null)
             {
                 reticleParentTransform.anchoredPosition = Vector2.zero;
