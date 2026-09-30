@@ -22,7 +22,7 @@ namespace PeakHeadTracking
         // Plugin metadata constants
         public const string PLUGIN_GUID = "com.cameraunlock.peak.headtracking";
         public const string PLUGIN_NAME = "Peak Head Tracking";
-        public const string PLUGIN_VERSION = "1.3.0";
+        public const string PLUGIN_VERSION = "1.4.0";
 
         // Shipped as Position Sensitivity X/Y/Z = 2 and Invert Roll = true before the canonical
         // config, correcting the tracker's pose to PEAK's view. Folded into the code so the view
